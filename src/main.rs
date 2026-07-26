@@ -56,16 +56,22 @@ async fn main() {
     // Flags-to-env conceptually parses .cli-flags.toml here, mapping args to ENV vars.
     let cli = Cli::parse();
 
+    let supabase_url = std::env::var("CLIPTOWN_SUPABASE_URL").unwrap_or_else(|_| "https://xyz.supabase.co".to_string());
+    let supabase_key = std::env::var("CLIPTOWN_SUPABASE_ANON_KEY").unwrap_or_else(|_| "anon-key".to_string());
+    
+    // The supabase-rs client
+    // let supabase_client = supabase_rs::SupabaseClient::new(supabase_url, supabase_key);
+
     match &cli.command {
         Commands::Auth { action } => {
             match action {
                 AuthAction::Login => {
-                    println!("Initiating Cliptown authentication...");
-                    // TODO: trigger auth flow
+                    println!("Initiating Cliptown authentication via Supabase GoTrue...");
+                    // TODO: call supabase_client.auth.sign_in_with_password()
                 }
                 AuthAction::Signout => {
-                    println!("Signing out of Cliptown...");
-                    // TODO: revoke auth tokens
+                    println!("Signing out of Cliptown (Supabase session invalidated)...");
+                    // TODO: call supabase_client.auth.sign_out()
                 }
             }
         }
