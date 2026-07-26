@@ -1,0 +1,27 @@
+# flags-2-env config — https://github.com/ORESoftware/flags-2-env
+#
+# Declares cliptown-cli's flags ONCE. The upstream C-backed `flags2env` client can
+# parse argv against this file into an env-var map; cliptown-cli reads those same
+# env names, with CLI flags overriding env.
+
+[help]
+url = "https://github.com/cliptown/cliptown-cli"
+columns = ["options", "env", "type", "description"]
+
+[parse]
+stop_at_first_positional = false
+allow_unknown = false
+
+[flags.filter]
+env = "CLIPTOWN_FILTER"
+aliases = ["filter"]
+short = "f"
+type = "string"
+help = "JSON string filter query to match clips"
+
+[flags.all]
+env = "CLIPTOWN_ALL"
+aliases = ["all"]
+short = "a"
+type = "boolean"
+help = "Retrieve all clipboard items"

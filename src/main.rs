@@ -10,45 +10,77 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Authenticate with your 6-digit PIN
-    Login {
+    /// Authenticate with the Cliptown ecosystem
+    #[command(alias = "login")]
+    #[command(alias = "signin")]
+    Auth {
+        #[command(subcommand)]
+        action: AuthAction,
+    },
+    
+    /// Get items from the ecosystem
+    Get {
+        #[command(subcommand)]
+        resource: GetResource,
+    },
+}
+
+#[derive(Subcommand)]
+enum AuthAction {
+    /// Log in to Cliptown
+    #[command(alias = "signin")]
+    Login,
+    
+    /// Log out of Cliptown
+    #[command(alias = "logout")]
+    #[command(alias = "signout")]
+    Signout,
+}
+
+#[derive(Subcommand)]
+enum GetResource {
+    /// Retrieve clips
+    Clips {
+        /// Retrieve all clipboard items
         #[arg(short, long)]
-        pin: String,
-    },
-    /// Sync the clipboard
-    Sync,
-    /// List recent clipboard items
-    List {
-        #[arg(short, long, default_value_t = 10)]
-        limit: usize,
-    },
-    /// Push text to the clipboard
-    Push {
+        all: bool,
+        
+        /// JSON string filter query to match clips
         #[arg(short, long)]
-        text: String,
-    },
+        filter: Option<String>,
+    }
 }
 
 #[tokio::main]
 async fn main() {
+    // Flags-to-env conceptually parses .cli-flags.toml here, mapping args to ENV vars.
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Login { pin } => {
-            println!("Logging in with PIN: {}", pin);
-            // TODO: Implement login logic using cliptown-client-rust
+        Commands::Auth { action } => {
+            match action {
+                AuthAction::Login => {
+                    println!("Initiating Cliptown authentication...");
+                    // TODO: trigger auth flow
+                }
+                AuthAction::Signout => {
+                    println!("Signing out of Cliptown...");
+                    // TODO: revoke auth tokens
+                }
+            }
         }
-        Commands::Sync => {
-            println!("Syncing clipboard items...");
-            // TODO: Implement sync logic using cliptown-client-rust
-        }
-        Commands::List { limit } => {
-            println!("Listing the last {} clipboard items...", limit);
-            // TODO: Fetch items
-        }
-        Commands::Push { text } => {
-            println!("Pushing '{}' to clipboard securely...", text);
-            // TODO: Encrypt and push
+        Commands::Get { resource } => {
+            match resource {
+                GetResource::Clips { all, filter } => {
+                    if *all {
+                        println!("Fetching ALL clips...");
+                    } else if let Some(f) = filter {
+                        println!("Fetching clips with filter: {}", f);
+                    } else {
+                        println!("Fetching default recent clips limit...");
+                    }
+                }
+            }
         }
     }
 }
