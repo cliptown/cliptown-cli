@@ -33,7 +33,6 @@ enum AuthAction {
     
     /// Log out of Cliptown
     #[command(alias = "logout")]
-    #[command(alias = "signout")]
     Signout,
 }
 
@@ -87,6 +86,58 @@ async fn main() {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn test_auth_login_alias() {
+        let args = vec!["cliptown", "auth", "login"];
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Commands::Auth { action } => {
+                assert!(matches!(action, AuthAction::Login));
+            }
+            _ => panic!("Expected Auth command"),
+        }
+    }
+
+    #[test]
+    fn test_auth_signin_alias() {
+        let args = vec!["cliptown", "auth", "signin"];
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Commands::Auth { action } => {
+                assert!(matches!(action, AuthAction::Login));
+            }
+            _ => panic!("Expected Auth command"),
+        }
+    }
+
+    #[test]
+    fn test_get_clips_all() {
+        let args = vec!["cliptown", "get", "clips", "--all"];
+        let cli = Cli::parse_from(args);
+        match cli.command {
+            Commands::Get { resource } => {
+                match resource {
+                    GetResource::Clips { all, filter } => {
+                        assert!(all);
+                        assert!(filter.is_none());
+                    }
+                }
+            }
+            _ => panic!("Expected Get command"),
         }
     }
 }

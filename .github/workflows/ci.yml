@@ -33,6 +33,22 @@ jobs:
       - name: Setup Protoc
         uses: arduino/setup-protoc@v3
         
+      - name: Check Formatting
+        working-directory: cliptown-cli
+        run: cargo fmt -- --check
+        
+      - name: Run Clippy
+        working-directory: cliptown-cli
+        run: cargo clippy -- -D warnings
+        
+      - name: Check for forbidden files
+        working-directory: cliptown-cli
+        run: |
+          if [ -d "target/" ] || [ -f ".env" ]; then
+            echo "Forbidden file/directory (target/ or .env) checked in!"
+            exit 1
+          fi
+
       - name: Build
         working-directory: cliptown-cli
         run: cargo build --verbose
