@@ -9,8 +9,10 @@ url = "https://github.com/cliptown/cliptown-cli"
 columns = ["options", "env", "type", "description"]
 
 [parse]
-stop_at_first_positional = false
-allow_unknown = false
+stop_at_first_positional = true
+positionals_env = "CLIPTOWN_POSITIONALS"
+unknown_options_env = "CLIPTOWN_UNKNOWN_OPTIONS"
+allow_unknown = true
 
 [flags.filter]
 env = "CLIPTOWN_FILTER"
