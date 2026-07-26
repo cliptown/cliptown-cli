@@ -1,0 +1,42 @@
+name: CLI CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout cliptown-cli
+        uses: actions/checkout@v4
+        with:
+          path: cliptown-cli
+
+      - name: Checkout cliptown-clients
+        uses: actions/checkout@v4
+        with:
+          repository: cliptown/cliptown-clients
+          path: cliptown-clients
+
+      - name: Checkout cliptown-interfaces
+        uses: actions/checkout@v4
+        with:
+          repository: cliptown/cliptown-interfaces
+          path: cliptown-interfaces
+          
+      - name: Setup Protoc
+        uses: arduino/setup-protoc@v3
+        
+      - name: Build
+        working-directory: cliptown-cli
+        run: cargo build --verbose
+
+      - name: Run tests
+        working-directory: cliptown-cli
+        run: cargo test --verbose
