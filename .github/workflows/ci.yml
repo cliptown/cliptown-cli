@@ -37,14 +37,44 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev
       - name: Verify locked dependency graph
+        id: metadata
+        continue-on-error: true
+        shell: bash
         working-directory: cliptown-cli
-        run: cargo metadata --locked --format-version 1 --no-deps > /dev/null
+        run: cargo metadata --locked --format-version 1 --no-deps > metadata-${{ runner.os }}.txt 2>&1
+      - name: Upload dependency diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-metadata-${{ runner.os }}
+          path: cliptown-cli/metadata-${{ runner.os }}.txt
+          if-no-files-found: error
+      - name: Enforce locked dependency graph
+        if: steps.metadata.outcome == 'failure'
+        shell: bash
+        working-directory: cliptown-cli
+        run: cat metadata-${{ runner.os }}.txt && exit 1
       - name: Check formatting
         working-directory: cliptown-cli
         run: cargo fmt --check
       - name: Run Clippy
+        id: clippy
+        continue-on-error: true
+        shell: bash
         working-directory: cliptown-cli
-        run: cargo clippy --locked --all-targets --message-format=short -- -D warnings
+        run: cargo clippy --locked --all-targets --message-format=short -- -D warnings > clippy-${{ runner.os }}.txt 2>&1
+      - name: Upload Clippy diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-clippy-${{ runner.os }}
+          path: cliptown-cli/clippy-${{ runner.os }}.txt
+          if-no-files-found: error
+      - name: Enforce Clippy result
+        if: steps.clippy.outcome == 'failure'
+        shell: bash
+        working-directory: cliptown-cli
+        run: cat clippy-${{ runner.os }}.txt && exit 1
       - name: Run all-target tests
         working-directory: cliptown-cli
         env:
