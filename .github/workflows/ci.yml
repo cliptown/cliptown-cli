@@ -62,5 +62,5 @@ jobs:
         run: ./scripts/install-flags2env.sh
       - name: Audit command and environment contract
         run: flags2env audit
-      - name: Generate shell completion contract
-        run: flags2env generate bash >/dev/null
+      - name: Generate Bash completion contract
+        run: flags2env completion bash cliptown > /dev/null
