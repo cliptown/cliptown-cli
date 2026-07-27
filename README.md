@@ -12,3 +12,5 @@ bin/cliptown doctor
 ```
 
 The CLI stores refresh/session material in the operating-system keyring. It never writes the account master key or plaintext clip history into config files. Clipboard reads require an explicit `clip add --from-clipboard` command.
+
+CI resolves the merged `main` branches of `cliptown-clients` and `cliptown-interfaces`, validates one cross-platform `Cargo.lock` on Linux, macOS, and Windows, and audits the default project `.cli-flags.toml` through the pinned `flags2env` source build.
