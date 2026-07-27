@@ -1,0 +1,46 @@
+name: refresh-windows-lock-once
+on:
+  push:
+    branches: [agent/cliptown-strong-skeletons]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/cliptown-strong-skeletons
+          path: cliptown-cli
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: cliptown/cliptown-clients
+          ref: main
+          path: cliptown-clients
+      - uses: actions/checkout@v4
+        with:
+          repository: cliptown/cliptown-interfaces
+          ref: main
+          path: cliptown-interfaces
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Refresh Windows dependency graph and remove workflow
+        shell: pwsh
+        working-directory: cliptown-cli
+        run: |
+          cargo update
+          cargo fmt
+          Remove-Item .github/workflows/refresh-windows-lock-once.yml
+          git add -A
+          if (-not (git diff --cached --quiet)) {
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'chore: refresh cross-platform CLI lockfile'
+            git push origin HEAD:agent/cliptown-strong-skeletons
+          }
