@@ -1,0 +1,84 @@
+name: Release CLI
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: cliptown-cli-linux-x86_64
+            binary: cliptown-core
+            archive: tar.gz
+          - os: macos-latest
+            asset: cliptown-cli-macos
+            binary: cliptown-core
+            archive: tar.gz
+          - os: windows-latest
+            asset: cliptown-cli-windows-x86_64
+            binary: cliptown-core.exe
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: cliptown-cli
+      - uses: actions/checkout@v4
+        with:
+          repository: cliptown/cliptown-clients
+          ref: main
+          path: cliptown-clients
+      - uses: actions/checkout@v4
+        with:
+          repository: cliptown/cliptown-interfaces
+          ref: main
+          path: cliptown-interfaces
+      - name: Install Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build locked release binary
+        working-directory: cliptown-cli
+        run: cargo build --locked --release
+      - name: Package Unix archive
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p staging/${{ matrix.asset }}
+          cp cliptown-cli/target/release/${{ matrix.binary }} staging/${{ matrix.asset }}/
+          cp cliptown-cli/bin/cliptown staging/${{ matrix.asset }}/
+          cp cliptown-cli/README.md staging/${{ matrix.asset }}/
+          tar -C staging -czf ${{ matrix.asset }}.tar.gz ${{ matrix.asset }}
+          shasum -a 256 ${{ matrix.asset }}.tar.gz > ${{ matrix.asset }}.tar.gz.sha256
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "staging/${{ matrix.asset }}" | Out-Null
+          Copy-Item "cliptown-cli/target/release/${{ matrix.binary }}" "staging/${{ matrix.asset }}/"
+          Copy-Item "cliptown-cli/README.md" "staging/${{ matrix.asset }}/"
+          Compress-Archive -Path "staging/${{ matrix.asset }}/*" -DestinationPath "${{ matrix.asset }}.zip"
+          (Get-FileHash "${{ matrix.asset }}.zip" -Algorithm SHA256).Hash.ToLower() + "  ${{ matrix.asset }}.zip" | Set-Content "${{ matrix.asset }}.zip.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: |
+            ${{ matrix.asset }}.${{ matrix.archive }}
+            ${{ matrix.asset }}.${{ matrix.archive }}.sha256
+          if-no-files-found: error
+      - name: Attach files to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            ${{ matrix.asset }}.${{ matrix.archive }}
+            ${{ matrix.asset }}.${{ matrix.archive }}.sha256
