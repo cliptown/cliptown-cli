@@ -36,9 +36,36 @@ jobs:
       - name: Install Linux clipboard and keyring headers
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev libdbus-1-dev pkg-config
-      - name: Verify locked dependency graph
+      - name: Verify locked dependency graph on Unix
+        if: runner.os != 'Windows'
         working-directory: cliptown-cli
         run: cargo metadata --locked --format-version 1 --no-deps > /dev/null
+      - name: Verify locked dependency graph on Windows
+        if: runner.os == 'Windows'
+        id: windows_metadata
+        continue-on-error: true
+        shell: pwsh
+        working-directory: cliptown-cli
+        run: cargo metadata --locked --format-version 1 --no-deps | Out-Null
+      - name: Capture Windows lockfile delta
+        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
+        shell: pwsh
+        working-directory: cliptown-cli
+        run: |
+          cargo update
+          git diff -- Cargo.lock | Set-Content windows-lock-diff.txt
+      - name: Upload Windows lockfile delta
+        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-windows-lock-diff
+          path: cliptown-cli/windows-lock-diff.txt
+          if-no-files-found: error
+      - name: Enforce Windows lockfile
+        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
+        shell: pwsh
+        working-directory: cliptown-cli
+        run: Get-Content windows-lock-diff.txt; exit 1
       - name: Check formatting
         working-directory: cliptown-cli
         run: cargo fmt --check
