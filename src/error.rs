@@ -4,8 +4,6 @@ pub enum CliError {
     Configuration(String),
     #[error("command-line parsing: {0}")]
     Parsing(String),
-    #[error("authentication: {0}")]
-    Authentication(String),
     #[error("clipboard: {0}")]
     Clipboard(String),
     #[error("I/O: {0}")]
