@@ -1,0 +1,43 @@
+name: refresh-lock-once
+on:
+  push:
+    branches: [agent/cliptown-strong-skeletons]
+permissions:
+  contents: write
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/cliptown-strong-skeletons
+          path: cliptown-cli
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: cliptown/cliptown-clients
+          ref: main
+          path: cliptown-clients
+      - uses: actions/checkout@v4
+        with:
+          repository: cliptown/cliptown-interfaces
+          ref: main
+          path: cliptown-interfaces
+      - run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Refresh lockfile, format, and remove workflow
+        working-directory: cliptown-cli
+        run: |
+          cargo update
+          cargo fmt
+          rm .github/workflows/refresh-lock-once.yml
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: refresh CLI lockfile and formatting'
+          git push origin HEAD:agent/cliptown-strong-skeletons
