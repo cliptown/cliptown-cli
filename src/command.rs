@@ -56,14 +56,13 @@ pub enum Command {
 impl Command {
     pub fn from_env() -> Result<Self, CliError> {
         let path = env::var("CLIPTOWN_COMMAND").unwrap_or_default();
-        let args: Vec<String> = serde_json::from_str(
-            &env::var("CLIPTOWN_POSITIONALS").unwrap_or_else(|_| "[]".into()),
-        )
-        .map_err(|error| CliError::Parsing(error.to_string()))?;
+        let args: Vec<String> =
+            serde_json::from_str(&env::var("CLIPTOWN_POSITIONALS").unwrap_or_else(|_| "[]".into()))
+                .map_err(|error| CliError::Parsing(error.to_string()))?;
         let argument = |index: usize| {
-            args.get(index).cloned().ok_or_else(|| {
-                CliError::Parsing(format!("missing argument {index} for {path}"))
-            })
+            args.get(index)
+                .cloned()
+                .ok_or_else(|| CliError::Parsing(format!("missing argument {index} for {path}")))
         };
 
         let command = match path.as_str() {
@@ -71,13 +70,9 @@ impl Command {
                 let reauth_days = env::var("CLIPTOWN_REAUTH_DAYS")
                     .unwrap_or_else(|_| "10".into())
                     .parse()
-                    .map_err(|_| {
-                        CliError::Parsing("reauth-days must be an integer".into())
-                    })?;
+                    .map_err(|_| CliError::Parsing("reauth-days must be an integer".into()))?;
                 if !(1..=20).contains(&reauth_days) {
-                    return Err(CliError::Parsing(
-                        "reauth-days must be 1..=20".into(),
-                    ));
+                    return Err(CliError::Parsing("reauth-days must be 1..=20".into()));
                 }
                 Self::AuthLogin { reauth_days }
             }
@@ -123,16 +118,14 @@ impl Command {
                 };
                 Self::ClipSearch {
                     query,
-                    mode: env::var("CLIPTOWN_SEARCH_MODE")
-                        .unwrap_or_else(|_| "local_only".into()),
+                    mode: env::var("CLIPTOWN_SEARCH_MODE").unwrap_or_else(|_| "local_only".into()),
                 }
             }
             "sync pull" => Self::SyncPull,
             "sync push" => Self::SyncPush,
             "sync status" => Self::SyncStatus,
             "sync pair" => Self::SyncPair {
-                transport: env::var("CLIPTOWN_PAIR_TRANSPORT")
-                    .unwrap_or_else(|_| "wifi".into()),
+                transport: env::var("CLIPTOWN_PAIR_TRANSPORT").unwrap_or_else(|_| "wifi".into()),
             },
             "config get" => Self::ConfigGet { key: argument(0)? },
             "config set" => Self::ConfigSet {
