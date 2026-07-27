@@ -61,18 +61,6 @@ jobs:
       - name: Install pinned flags2env
         run: ./scripts/install-flags2env.sh
       - name: Audit command and environment contract
-        id: flags_audit
-        continue-on-error: true
-        run: flags2env audit --config .cli-flags.toml > flags-audit.txt 2>&1
-      - name: Upload flags audit diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-flags-audit
-          path: flags-audit.txt
-          if-no-files-found: error
-      - name: Enforce flags audit result
-        if: steps.flags_audit.outcome == 'failure'
-        run: cat flags-audit.txt && exit 1
+        run: flags2env audit
       - name: Generate shell completion contract
-        run: flags2env generate bash --config .cli-flags.toml >/dev/null
+        run: flags2env generate bash >/dev/null
