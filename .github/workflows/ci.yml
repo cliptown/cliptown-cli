@@ -1,58 +1,56 @@
-name: CLI CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+name: cli-ci
+on: {pull_request: {}, push: {branches: [main]}}
+permissions: {contents: read}
 
 jobs:
   test:
+    strategy: {fail-fast: false, matrix: {os: [ubuntu-latest, macos-latest, windows-latest]}}
     runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - name: Checkout cliptown-cli
-        uses: actions/checkout@v4
-        with:
-          path: cliptown-cli
-
-      - name: Checkout cliptown-clients
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {path: cliptown-cli}
+      - id: clients-ref
+        shell: bash
+        env: {CANDIDATE: "${{ github.head_ref }}"}
+        run: |
+          ref=main
+          if [[ -n "$CANDIDATE" ]] && git ls-remote --exit-code --heads https://github.com/cliptown/cliptown-clients.git "$CANDIDATE" >/dev/null 2>&1; then ref="$CANDIDATE"; fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - id: interfaces-ref
+        shell: bash
+        env: {CANDIDATE: "${{ github.head_ref }}"}
+        run: |
+          ref=main
+          if [[ -n "$CANDIDATE" ]] && git ls-remote --exit-code --heads https://github.com/cliptown/cliptown-interfaces.git "$CANDIDATE" >/dev/null 2>&1; then ref="$CANDIDATE"; fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
         with:
           repository: cliptown/cliptown-clients
+          ref: ${{ steps.clients-ref.outputs.ref }}
           path: cliptown-clients
-
-      - name: Checkout cliptown-interfaces
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: cliptown/cliptown-interfaces
+          ref: ${{ steps.interfaces-ref.outputs.ref }}
           path: cliptown-interfaces
-          
-      - name: Setup Protoc
-        uses: arduino/setup-protoc@v3
-        
-      - name: Check Formatting
-        working-directory: cliptown-cli
-        run: cargo fmt -- --check
-        
-      - name: Run Clippy
-        working-directory: cliptown-cli
-        run: cargo clippy -- -D warnings
-        
-      - name: Check for forbidden files
-        working-directory: cliptown-cli
-        run: |
-          if [ -d "target/" ] || [ -f ".env" ]; then
-            echo "Forbidden file/directory (target/ or .env) checked in!"
-            exit 1
-          fi
+      - uses: dtolnay/rust-toolchain@stable
+        with: {components: rustfmt, clippy}
+      - name: Linux clipboard headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev
+      - working-directory: cliptown-cli
+        run: cargo fmt --check
+      - working-directory: cliptown-cli
+        run: cargo clippy --all-targets -- -D warnings
+      - working-directory: cliptown-cli
+        run: cargo test
+      - working-directory: cliptown-cli
+        run: cargo build --release
 
-      - name: Build
-        working-directory: cliptown-cli
-        run: cargo build --verbose
-
-      - name: Run tests
-        working-directory: cliptown-cli
-        run: cargo test --verbose
+  flags-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/install-flags2env.sh
+      - run: flags2env audit --config .cli-flags.toml
+      - run: flags2env generate bash --config .cli-flags.toml >/dev/null

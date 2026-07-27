@@ -1,143 +1,20 @@
-use clap::{Parser, Subcommand};
+mod command;
+mod config;
+mod error;
 
-#[derive(Parser)]
-#[command(name = "cliptown")]
-#[command(about = "CLI for Cliptown, the secure, cross-platform clipboard manager", long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Authenticate with the Cliptown ecosystem
-    #[command(alias = "login")]
-    #[command(alias = "signin")]
-    Auth {
-        #[command(subcommand)]
-        action: AuthAction,
-    },
-    
-    /// Get items from the ecosystem
-    Get {
-        #[command(subcommand)]
-        resource: GetResource,
-    },
-}
-
-#[derive(Subcommand)]
-enum AuthAction {
-    /// Log in to Cliptown
-    #[command(alias = "signin")]
-    Login,
-    
-    /// Log out of Cliptown
-    #[command(alias = "logout")]
-    Signout,
-}
-
-#[derive(Subcommand)]
-enum GetResource {
-    /// Retrieve clips
-    Clips {
-        /// Retrieve all clipboard items
-        #[arg(short, long)]
-        all: bool,
-        
-        /// JSON string filter query to match clips
-        #[arg(short, long)]
-        filter: Option<String>,
-    }
-}
+use command::Command;
+use config::RuntimeConfig;
 
 #[tokio::main]
 async fn main() {
-    // Flags-to-env conceptually parses .cli-flags.toml here, mapping args to ENV vars.
-    let cli = Cli::parse();
-
-    let supabase_url = std::env::var("CLIPTOWN_SUPABASE_URL").unwrap_or_else(|_| "https://xyz.supabase.co".to_string());
-    let supabase_key = std::env::var("CLIPTOWN_SUPABASE_ANON_KEY").unwrap_or_else(|_| "anon-key".to_string());
-    
-    // The supabase-rs client
-    // let supabase_client = supabase_rs::SupabaseClient::new(supabase_url, supabase_key);
-
-    match &cli.command {
-        Commands::Auth { action } => {
-            match action {
-                AuthAction::Login => {
-                    println!("Initiating Cliptown authentication via Supabase GoTrue...");
-                    // TODO: call supabase_client.auth.sign_in_with_password()
-                }
-                AuthAction::Signout => {
-                    println!("Signing out of Cliptown (Supabase session invalidated)...");
-                    // TODO: call supabase_client.auth.sign_out()
-                }
-            }
-        }
-        Commands::Get { resource } => {
-            match resource {
-                GetResource::Clips { all, filter } => {
-                    if *all {
-                        println!("Fetching ALL clips...");
-                    } else if let Some(f) = filter {
-                        println!("Fetching clips with filter: {}", f);
-                    } else {
-                        println!("Fetching default recent clips limit...");
-                    }
-                }
-            }
-        }
+    if let Err(error) = run().await {
+        eprintln!("cliptown: {error}");
+        std::process::exit(1);
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use clap::CommandFactory;
-
-    #[test]
-    fn verify_cli() {
-        Cli::command().debug_assert();
-    }
-
-    #[test]
-    fn test_auth_login_alias() {
-        let args = vec!["cliptown", "auth", "login"];
-        let cli = Cli::parse_from(args);
-        match cli.command {
-            Commands::Auth { action } => {
-                assert!(matches!(action, AuthAction::Login));
-            }
-            _ => panic!("Expected Auth command"),
-        }
-    }
-
-    #[test]
-    fn test_auth_signin_alias() {
-        let args = vec!["cliptown", "auth", "signin"];
-        let cli = Cli::parse_from(args);
-        match cli.command {
-            Commands::Auth { action } => {
-                assert!(matches!(action, AuthAction::Login));
-            }
-            _ => panic!("Expected Auth command"),
-        }
-    }
-
-    #[test]
-    fn test_get_clips_all() {
-        let args = vec!["cliptown", "get", "clips", "--all"];
-        let cli = Cli::parse_from(args);
-        match cli.command {
-            Commands::Get { resource } => {
-                match resource {
-                    GetResource::Clips { all, filter } => {
-                        assert!(all);
-                        assert!(filter.is_none());
-                    }
-                }
-            }
-            _ => panic!("Expected Get command"),
-        }
-    }
+async fn run() -> Result<(), error::CliError> {
+    let config = RuntimeConfig::from_env()?;
+    let command = Command::from_env()?;
+    command.execute(config).await
 }

@@ -1,29 +1,101 @@
-# flags-2-env config — https://github.com/ORESoftware/flags-2-env
-#
-# Declares cliptown-cli's flags ONCE. The upstream C-backed `flags2env` client can
-# parse argv against this file into an env-var map; cliptown-cli reads those same
-# env names, with CLI flags overriding env.
-
 [help]
-url = "https://github.com/cliptown/cliptown-cli"
-columns = ["options", "env", "type", "description"]
+url = "https://cliptown.app/docs/cli"
+columns = ["options", "env", "type", "default", "description"]
 
 [parse]
-stop_at_first_positional = true
+command_env = "CLIPTOWN_COMMAND"
 positionals_env = "CLIPTOWN_POSITIONALS"
 unknown_options_env = "CLIPTOWN_UNKNOWN_OPTIONS"
-allow_unknown = true
+errors_env = "CLIPTOWN_PARSE_ERRORS"
+allow_unknown = false
 
-[flags.filter]
-env = "CLIPTOWN_FILTER"
-aliases = ["filter"]
-short = "f"
+[global.flags.endpoint]
+env = "CLIPTOWN_ENDPOINT"
+aliases = ["endpoint", "api-url"]
 type = "string"
-help = "JSON string filter query to match clips"
+default = "https://api.cliptown.app"
+help = "ClipTown API endpoint."
 
-[flags.all]
-env = "CLIPTOWN_ALL"
-aliases = ["all"]
-short = "a"
-type = "boolean"
-help = "Retrieve all clipboard items"
+[global.flags.json]
+env = "CLIPTOWN_OUTPUT_JSON"
+aliases = ["json"]
+type = "bool"
+default = false
+help = "Emit machine-readable JSON."
+
+[commands.auth]
+help = "Manage Supabase, 3FA, and shared-auth sessions."
+[commands.auth.commands.login]
+help = "Start browser/PKCE login and enroll this device."
+[commands.auth.commands.login.flags.reauth-days]
+env = "CLIPTOWN_REAUTH_DAYS"
+aliases = ["reauth-days"]
+type = "integer"
+default = 10
+help = "Reauthentication interval, from 1 through 20 days."
+[commands.auth.commands.status]
+help = "Show session and registered-device status."
+[commands.auth.commands.logout]
+help = "Revoke local session material."
+
+[commands.clip]
+help = "Read and write encrypted clips."
+[commands.clip.commands.list]
+[commands.clip.commands.list.flags.limit]
+env = "CLIPTOWN_LIMIT"
+aliases = ["limit"]
+short = "n"
+type = "integer"
+default = 20
+[commands.clip.commands.get]
+[commands.clip.commands.add]
+[commands.clip.commands.add.flags.text]
+env = "CLIPTOWN_TEXT"
+aliases = ["text"]
+type = "string"
+[commands.clip.commands.add.flags.file]
+env = "CLIPTOWN_FILE"
+aliases = ["file"]
+type = "string"
+[commands.clip.commands.add.flags.from-clipboard]
+env = "CLIPTOWN_FROM_CLIPBOARD"
+aliases = ["from-clipboard"]
+type = "bool"
+default = false
+[commands.clip.commands.add.flags.pin]
+env = "CLIPTOWN_PIN_CLIP"
+aliases = ["pin"]
+type = "bool"
+default = false
+[commands.clip.commands.pin]
+[commands.clip.commands.unpin]
+[commands.clip.commands.delete]
+[commands.clip.commands.copy]
+[commands.clip.commands.search]
+[commands.clip.commands.search.flags.query]
+env = "CLIPTOWN_QUERY"
+aliases = ["query"]
+short = "q"
+type = "string"
+[commands.clip.commands.search.flags.mode]
+env = "CLIPTOWN_SEARCH_MODE"
+aliases = ["mode"]
+type = "string"
+default = "local_only"
+
+[commands.sync]
+[commands.sync.commands.pull]
+[commands.sync.commands.push]
+[commands.sync.commands.status]
+[commands.sync.commands.pair]
+[commands.sync.commands.pair.flags.transport]
+env = "CLIPTOWN_PAIR_TRANSPORT"
+aliases = ["transport"]
+type = "string"
+default = "wifi"
+
+[commands.config]
+[commands.config.commands.get]
+[commands.config.commands.set]
+[commands.doctor]
+help = "Check API, keyring, clipboard, auth, and peer-sync prerequisites."
