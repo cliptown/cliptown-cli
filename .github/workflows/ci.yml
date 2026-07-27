@@ -35,46 +35,16 @@ jobs:
           components: rustfmt, clippy
       - name: Install Linux clipboard and keyring headers
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev libdbus-1-dev pkg-config
       - name: Verify locked dependency graph
-        id: metadata
-        continue-on-error: true
-        shell: bash
         working-directory: cliptown-cli
-        run: cargo metadata --locked --format-version 1 --no-deps > metadata-${{ runner.os }}.txt 2>&1
-      - name: Upload dependency diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-metadata-${{ runner.os }}
-          path: cliptown-cli/metadata-${{ runner.os }}.txt
-          if-no-files-found: error
-      - name: Enforce locked dependency graph
-        if: steps.metadata.outcome == 'failure'
-        shell: bash
-        working-directory: cliptown-cli
-        run: cat metadata-${{ runner.os }}.txt && exit 1
+        run: cargo metadata --locked --format-version 1 --no-deps > /dev/null
       - name: Check formatting
         working-directory: cliptown-cli
         run: cargo fmt --check
       - name: Run Clippy
-        id: clippy
-        continue-on-error: true
-        shell: bash
         working-directory: cliptown-cli
-        run: cargo clippy --locked --all-targets --message-format=short -- -D warnings > clippy-${{ runner.os }}.txt 2>&1
-      - name: Upload Clippy diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-clippy-${{ runner.os }}
-          path: cliptown-cli/clippy-${{ runner.os }}.txt
-          if-no-files-found: error
-      - name: Enforce Clippy result
-        if: steps.clippy.outcome == 'failure'
-        shell: bash
-        working-directory: cliptown-cli
-        run: cat clippy-${{ runner.os }}.txt && exit 1
+        run: cargo clippy --locked --all-targets --message-format=short -- -D warnings
       - name: Run all-target tests
         working-directory: cliptown-cli
         env:
@@ -91,6 +61,18 @@ jobs:
       - name: Install pinned flags2env
         run: ./scripts/install-flags2env.sh
       - name: Audit command and environment contract
-        run: flags2env audit --config .cli-flags.toml
+        id: flags_audit
+        continue-on-error: true
+        run: flags2env audit --config .cli-flags.toml > flags-audit.txt 2>&1
+      - name: Upload flags audit diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-flags-audit
+          path: flags-audit.txt
+          if-no-files-found: error
+      - name: Enforce flags audit result
+        if: steps.flags_audit.outcome == 'failure'
+        run: cat flags-audit.txt && exit 1
       - name: Generate shell completion contract
         run: flags2env generate bash --config .cli-flags.toml >/dev/null
