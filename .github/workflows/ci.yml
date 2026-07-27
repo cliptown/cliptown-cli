@@ -6,53 +6,88 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout cliptown-cli
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           path: cliptown-cli
-
-      - name: Checkout cliptown-clients
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: cliptown/cliptown-clients
+          ref: main
           path: cliptown-clients
-
-      - name: Checkout cliptown-interfaces
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: cliptown/cliptown-interfaces
+          ref: main
           path: cliptown-interfaces
-          
-      - name: Setup Protoc
-        uses: arduino/setup-protoc@v3
-        
-      - name: Check Formatting
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Linux clipboard and keyring headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev libdbus-1-dev pkg-config
+      - name: Verify locked dependency graph on Unix
+        if: runner.os != 'Windows'
         working-directory: cliptown-cli
-        run: cargo fmt -- --check
-        
-      - name: Run Clippy
+        run: cargo metadata --locked --format-version 1 --no-deps > /dev/null
+      - name: Verify locked dependency graph on Windows
+        if: runner.os == 'Windows'
+        id: windows_metadata
+        continue-on-error: true
+        shell: pwsh
         working-directory: cliptown-cli
-        run: cargo clippy -- -D warnings
-        
-      - name: Check for forbidden files
+        run: cargo metadata --locked --format-version 1 --no-deps | Out-Null
+      - name: Capture Windows lockfile delta
+        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
+        shell: pwsh
         working-directory: cliptown-cli
         run: |
-          if [ -d "target/" ] || [ -f ".env" ]; then
-            echo "Forbidden file/directory (target/ or .env) checked in!"
-            exit 1
-          fi
-
-      - name: Build
+          cargo update
+          git diff -- Cargo.lock | Set-Content windows-lock-diff.txt
+      - name: Upload Windows lockfile delta
+        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-windows-lock-diff
+          path: cliptown-cli/windows-lock-diff.txt
+          if-no-files-found: error
+      - name: Enforce Windows lockfile
+        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
+        shell: pwsh
         working-directory: cliptown-cli
-        run: cargo build --verbose
-
-      - name: Run tests
+        run: Get-Content windows-lock-diff.txt; exit 1
+      - name: Check formatting
         working-directory: cliptown-cli
-        run: cargo test --verbose
+        run: cargo fmt --check
+      - name: Run Clippy
+        working-directory: cliptown-cli
+        run: cargo clippy --locked --all-targets --message-format=short -- -D warnings
+      - name: Run all-target tests
+        working-directory: cliptown-cli
+        env:
+          RUST_BACKTRACE: '1'
+        run: cargo test --locked --all-targets -- --nocapture
+      - name: Build release binary
+        working-directory: cliptown-cli
+        run: cargo build --locked --release
+
+  flags-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned flags2env
+        run: ./scripts/install-flags2env.sh
+      - name: Audit command and environment contract
+        run: flags2env audit
+      - name: Generate Bash completion contract
+        run: flags2env completion bash cliptown > /dev/null

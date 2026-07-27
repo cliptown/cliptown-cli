@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if ! command -v flags2env >/dev/null 2>&1; then
+  echo "flags2env is required (github.com/ORESoftware/flags-2-env)" >&2
+  exit 127
+fi
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# flags2env prints shell-safe export statements; eval preserves spaces and JSON values.
+eval "$(flags2env export --config "$repo_dir/.cli-flags.toml" -- "$0" "$@")"
+exec "${CLIPTOWN_CORE_BIN:-$repo_dir/target/release/cliptown-core}"
