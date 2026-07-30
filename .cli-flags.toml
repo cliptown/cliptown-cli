@@ -49,14 +49,16 @@ type = "integer"
 default = 20
 [commands.clip.commands.get]
 [commands.clip.commands.add]
-[commands.clip.commands.add.flags.text]
-env = "CLIPTOWN_TEXT"
-aliases = ["text"]
-type = "string"
 [commands.clip.commands.add.flags.file]
 env = "CLIPTOWN_FILE"
 aliases = ["file"]
 type = "string"
+[commands.clip.commands.add.flags.stdin]
+env = "CLIPTOWN_STDIN"
+aliases = ["stdin"]
+type = "bool"
+default = false
+help = "Read UTF-8 clip text from standard input."
 [commands.clip.commands.add.flags.from-clipboard]
 env = "CLIPTOWN_FROM_CLIPBOARD"
 aliases = ["from-clipboard"]

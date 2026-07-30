@@ -10,6 +10,13 @@ pub struct RuntimeConfig {
 }
 
 impl RuntimeConfig {
+    pub fn output_json_requested() -> bool {
+        matches!(
+            std::env::var("CLIPTOWN_OUTPUT_JSON").as_deref(),
+            Ok("true" | "1")
+        )
+    }
+
     pub fn from_env() -> Result<Self, CliError> {
         let endpoint = std::env::var("CLIPTOWN_ENDPOINT")
             .unwrap_or_else(|_| "https://api.cliptown.app".into())
@@ -23,10 +30,7 @@ impl RuntimeConfig {
                 "endpoint must use HTTPS outside localhost".into(),
             ));
         }
-        let json = matches!(
-            std::env::var("CLIPTOWN_OUTPUT_JSON").as_deref(),
-            Ok("true" | "1")
-        );
+        let json = Self::output_json_requested();
         let dirs = ProjectDirs::from("app", "ClipTown", "ClipTown")
             .ok_or_else(|| CliError::Configuration("cannot resolve config directory".into()))?;
         Ok(Self {

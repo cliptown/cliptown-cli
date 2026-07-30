@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cliptown.app/schemas/cli-envelope.schema.json",
+  "title": "ClipTown CLI JSON envelope",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "result": {
+      "$ref": "#/$defs/result"
+    },
+    "error": {
+      "$ref": "#/$defs/error"
+    }
+  },
+  "required": [
+    "schema_version",
+    "ok"
+  ],
+  "oneOf": [
+    {
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "result": {
+          "$ref": "#/$defs/result"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "not": {
+        "required": [
+          "error"
+        ]
+      }
+    },
+    {
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "$ref": "#/$defs/error"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "not": {
+        "required": [
+          "result"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "result": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": true
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_arguments",
+            "invalid_configuration",
+            "clipboard_unavailable",
+            "io_error",
+            "client_error"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
