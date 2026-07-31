@@ -5,11 +5,22 @@ Rust CLI for ClipTown. Command-line flags are normalized by [`ORESoftware/flags-
 ```bash
 bin/cliptown auth login
 bin/cliptown clip list --limit=50
-bin/cliptown clip add --text='deploy checklist' --pin
+bin/cliptown clip add --stdin --pin < deploy-checklist.txt
+bin/cliptown clip add --file deploy-checklist.txt
 bin/cliptown clip search --query='postgres migration'
 bin/cliptown sync pull
-bin/cliptown doctor
+bin/cliptown --json doctor
 ```
+
+Clip payload text is intentionally not accepted as a command-line flag, where it
+could remain in shell history or process listings. Use `--stdin`, `--file`, or
+the explicit `--from-clipboard` mode; exactly one input source is required.
+Successful `--json` responses use a versioned `{schema_version, ok, result}`
+envelope. Errors use `{schema_version, ok, error}` on standard error and stable
+exit codes: 2 for invalid arguments, 3 for configuration, 4 for clipboard
+access, 5 for local I/O, and 6 for client/service failures.
+The machine-readable contract is published as
+[`schemas/cli-envelope.schema.json`](schemas/cli-envelope.schema.json).
 
 The CLI stores refresh/session material in the operating-system keyring. It never writes the account master key or plaintext clip history into config files. Clipboard reads require an explicit `clip add --from-clipboard` command.
 

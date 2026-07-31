@@ -11,3 +11,43 @@ pub enum CliError {
     #[error("client: {0}")]
     Client(#[from] cliptown_client_rust::ClientError),
 }
+
+impl CliError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Parsing(_) => "invalid_arguments",
+            Self::Configuration(_) => "invalid_configuration",
+            Self::Clipboard(_) => "clipboard_unavailable",
+            Self::Io(_) => "io_error",
+            Self::Client(_) => "client_error",
+        }
+    }
+
+    pub fn exit_code(&self) -> i32 {
+        match self {
+            Self::Parsing(_) => 2,
+            Self::Configuration(_) => 3,
+            Self::Clipboard(_) => 4,
+            Self::Io(_) => 5,
+            Self::Client(_) => 6,
+        }
+    }
+
+    pub fn report(&self, json: bool) {
+        if json {
+            eprintln!(
+                "{}",
+                serde_json::json!({
+                    "schema_version": 1,
+                    "ok": false,
+                    "error": {
+                        "code": self.code(),
+                        "message": self.to_string(),
+                    }
+                })
+            );
+        } else {
+            eprintln!("cliptown: {self}");
+        }
+    }
+}

@@ -8,8 +8,8 @@ use config::RuntimeConfig;
 #[tokio::main]
 async fn main() {
     if let Err(error) = run().await {
-        eprintln!("cliptown: {error}");
-        std::process::exit(1);
+        error.report(RuntimeConfig::output_json_requested());
+        std::process::exit(error.exit_code());
     }
 }
 

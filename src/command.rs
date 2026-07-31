@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, io::Read};
 
 use arboard::Clipboard;
 
@@ -18,8 +18,8 @@ pub enum Command {
         clip_id: String,
     },
     ClipAdd {
-        text: Option<String>,
         file: Option<String>,
+        from_stdin: bool,
         from_clipboard: bool,
         pin: bool,
     },
@@ -92,8 +92,8 @@ impl Command {
                 clip_id: argument(0)?,
             },
             "clip add" => Self::ClipAdd {
-                text: env::var("CLIPTOWN_TEXT").ok(),
                 file: env::var("CLIPTOWN_FILE").ok(),
+                from_stdin: bool_env("CLIPTOWN_STDIN"),
                 from_clipboard: bool_env("CLIPTOWN_FROM_CLIPBOARD"),
                 pin: bool_env("CLIPTOWN_PIN_CLIP"),
             },
@@ -146,60 +146,138 @@ impl Command {
         match self {
             Self::Doctor => {
                 let clipboard = Clipboard::new().map(|_| "ok").unwrap_or("unavailable");
-                if config.json {
-                    println!(
-                        "{}",
-                        serde_json::json!({
-                            "endpoint": config.endpoint,
-                            "config_dir": config.config_dir,
-                            "clipboard": clipboard,
-                            "flags2env": "ok"
-                        })
-                    );
-                } else {
-                    println!(
+                emit_result(
+                    &config,
+                    serde_json::json!({
+                        "command": "doctor",
+                        "endpoint": config.endpoint,
+                        "config_dir": config.config_dir,
+                        "clipboard": clipboard,
+                        "flags2env": "ok"
+                    }),
+                    format!(
                         "endpoint={} config_dir={} clipboard={} flags2env=ok",
                         config.endpoint,
                         config.config_dir.display(),
                         clipboard
-                    );
-                }
+                    ),
+                );
             }
             Self::ClipAdd {
-                text,
                 file,
+                from_stdin,
                 from_clipboard,
                 pin,
             } => {
-                let payload = if from_clipboard {
+                let source_count = [file.is_some(), from_stdin, from_clipboard]
+                    .into_iter()
+                    .filter(|selected| *selected)
+                    .count();
+                if source_count != 1 {
+                    return Err(CliError::Parsing(
+                        "choose exactly one of --stdin, --file, or --from-clipboard".into(),
+                    ));
+                }
+
+                let (payload, source) = if from_clipboard {
                     Clipboard::new()
                         .and_then(|mut clipboard| clipboard.get_text())
+                        .map(|payload| (payload, "clipboard"))
                         .map_err(|error| CliError::Clipboard(error.to_string()))?
-                } else if let Some(text) = text {
-                    text
+                } else if from_stdin {
+                    let mut payload = String::new();
+                    std::io::stdin().read_to_string(&mut payload)?;
+                    (payload, "stdin")
                 } else if let Some(path) = file {
-                    std::fs::read_to_string(path)?
+                    (std::fs::read_to_string(path)?, "file")
                 } else {
-                    return Err(CliError::Parsing(
-                        "provide --text, --file, or --from-clipboard".into(),
-                    ));
+                    unreachable!("source count was validated")
                 };
-                println!(
-                    "queued encrypted clip ({} bytes, pinned={pin})",
-                    payload.len()
+
+                emit_result(
+                    &config,
+                    serde_json::json!({
+                        "command": "clip.add",
+                        "status": "queued",
+                        "source": source,
+                        "byte_count": payload.len(),
+                        "pinned": pin,
+                    }),
+                    format!(
+                        "queued encrypted clip ({} bytes, pinned={pin})",
+                        payload.len()
+                    ),
                 );
             }
-            Self::AuthLogin { reauth_days } => println!(
-                "start Supabase PKCE + 3FA/shared-auth login (reauth every {reauth_days} days)"
+            Self::AuthLogin { reauth_days } => emit_result(
+                &config,
+                serde_json::json!({
+                    "command": "auth.login",
+                    "status": "not_implemented",
+                    "reauth_days": reauth_days,
+                }),
+                format!(
+                    "start Supabase PKCE + 3FA/shared-auth login \
+                     (reauth every {reauth_days} days)"
+                ),
             ),
-            other => println!("{other:?} against {}", config.endpoint),
+            other => {
+                let command = other.path();
+                emit_result(
+                    &config,
+                    serde_json::json!({
+                        "command": command,
+                        "status": "not_implemented",
+                        "endpoint": config.endpoint,
+                    }),
+                    format!("{command} is not implemented against {}", config.endpoint),
+                );
+            }
         }
         Ok(())
+    }
+
+    fn path(&self) -> &'static str {
+        match self {
+            Self::AuthLogin { .. } => "auth.login",
+            Self::AuthStatus => "auth.status",
+            Self::AuthLogout => "auth.logout",
+            Self::ClipList { .. } => "clip.list",
+            Self::ClipGet { .. } => "clip.get",
+            Self::ClipAdd { .. } => "clip.add",
+            Self::ClipPin { pinned: true, .. } => "clip.pin",
+            Self::ClipPin { pinned: false, .. } => "clip.unpin",
+            Self::ClipDelete { .. } => "clip.delete",
+            Self::ClipCopy { .. } => "clip.copy",
+            Self::ClipSearch { .. } => "clip.search",
+            Self::SyncPull => "sync.pull",
+            Self::SyncPush => "sync.push",
+            Self::SyncStatus => "sync.status",
+            Self::SyncPair { .. } => "sync.pair",
+            Self::ConfigGet { .. } => "config.get",
+            Self::ConfigSet { .. } => "config.set",
+            Self::Doctor => "doctor",
+        }
     }
 }
 
 fn bool_env(key: &str) -> bool {
     matches!(env::var(key).as_deref(), Ok("true" | "1" | "yes"))
+}
+
+fn emit_result(config: &RuntimeConfig, result: serde_json::Value, plain: String) {
+    if config.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "schema_version": 1,
+                "ok": true,
+                "result": result,
+            })
+        );
+    } else {
+        println!("{plain}");
+    }
 }
 
 #[cfg(test)]
@@ -229,5 +307,25 @@ mod tests {
         env::set_var("CLIPTOWN_REAUTH_DAYS", "21");
         env::set_var("CLIPTOWN_POSITIONALS", "[]");
         assert!(Command::from_env().is_err());
+    }
+
+    #[test]
+    fn parses_stdin_clip_source() {
+        let _guard = LOCK.lock().unwrap();
+        env::set_var("CLIPTOWN_COMMAND", "clip add");
+        env::set_var("CLIPTOWN_POSITIONALS", "[]");
+        env::set_var("CLIPTOWN_STDIN", "true");
+        env::remove_var("CLIPTOWN_FILE");
+        env::remove_var("CLIPTOWN_FROM_CLIPBOARD");
+        assert_eq!(
+            Command::from_env().unwrap(),
+            Command::ClipAdd {
+                file: None,
+                from_stdin: true,
+                from_clipboard: false,
+                pin: false,
+            }
+        );
+        env::remove_var("CLIPTOWN_STDIN");
     }
 }
