@@ -14,6 +14,8 @@ url = "https://github.com/cliptown/cliptown-cli"
 [dependencies]
 "cliptown/cliptown-clients" = "^0.1.0"
 "cliptown/cliptown-interfaces" = "^0.1.0"
+# Keep this draft blocked until cliptown-monorepo#15 creates and publishes it.
+"cliptown/cliptown-lib" = "^0.1.0"
 
 [build]
 command = "cargo build --release --locked --bin cliptown-core"
