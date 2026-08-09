@@ -5,89 +5,161 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  test:
+  portability:
+    name: CLI on ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os:
+          - ubuntu-24.04
+          - macos-15
+          - windows-2025
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the exact CLI revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: cliptown-cli
-      - uses: actions/checkout@v4
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Check out the exact clients dependency
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: cliptown/cliptown-clients
-          ref: main
+          ref: 8ee49a596c32950efa49f17a5894a5137da633b2
           path: cliptown-clients
-      - uses: actions/checkout@v4
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Check out the exact interfaces dependency
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: cliptown/cliptown-interfaces
-          ref: main
+          ref: 85581536948217b0d9433a900a290eee000bc51c
           path: cliptown-interfaces
-      - uses: dtolnay/rust-toolchain@stable
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install the repository Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
+          toolchain: stable
           components: rustfmt, clippy
+
       - name: Install Linux clipboard and keyring headers
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev libdbus-1-dev pkg-config
-      - name: Verify locked dependency graph on Unix
-        if: runner.os != 'Windows'
-        working-directory: cliptown-cli
-        run: cargo metadata --locked --format-version 1 --no-deps > /dev/null
-      - name: Verify locked dependency graph on Windows
-        if: runner.os == 'Windows'
-        id: windows_metadata
-        continue-on-error: true
-        shell: pwsh
-        working-directory: cliptown-cli
-        run: cargo metadata --locked --format-version 1 --no-deps | Out-Null
-      - name: Capture Windows lockfile delta
-        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
-        shell: pwsh
-        working-directory: cliptown-cli
         run: |
-          cargo update
-          git diff -- Cargo.lock | Set-Content windows-lock-diff.txt
-      - name: Upload Windows lockfile delta
-        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-windows-lock-diff
-          path: cliptown-cli/windows-lock-diff.txt
-          if-no-files-found: error
-      - name: Enforce Windows lockfile
-        if: runner.os == 'Windows' && steps.windows_metadata.outcome == 'failure'
-        shell: pwsh
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libsecret-1-dev \
+            libdbus-1-dev \
+            pkg-config
+
+      - name: Verify the locked dependency graph
         working-directory: cliptown-cli
-        run: Get-Content windows-lock-diff.txt; exit 1
+        run: cargo metadata --locked --format-version 1 --no-deps
+
       - name: Check formatting
         working-directory: cliptown-cli
-        run: cargo fmt --check
-      - name: Run Clippy
+        run: cargo fmt --all -- --check
+
+      - name: Run warnings-denied Clippy
         working-directory: cliptown-cli
         run: cargo clippy --locked --all-targets --message-format=short -- -D warnings
-      - name: Run all-target tests
+
+      - name: Run every test target
         working-directory: cliptown-cli
         env:
           RUST_BACKTRACE: '1'
         run: cargo test --locked --all-targets -- --nocapture
-      - name: Build release binary
+
+      - name: Build the release CLI
         working-directory: cliptown-cli
-        run: cargo build --locked --release
+        run: cargo build --locked --release --bins
+
+      - name: Smoke the real release binary
+        shell: node {0}
+        working-directory: cliptown-cli
+        run: |
+          const childProcess = require('child_process');
+          const fs = require('fs');
+          const path = require('path');
+
+          const executable = path.join(
+            'target',
+            'release',
+            process.platform === 'win32' ? 'cliptown-core.exe' : 'cliptown-core',
+          );
+          if (!fs.statSync(executable, { throwIfNoEntry: false })?.isFile()) {
+            throw new Error(`release CLI is missing: ${executable}`);
+          }
+          const result = childProcess.spawnSync(executable, ['--help'], {
+            encoding: 'utf8',
+            env: { ...process.env, NO_COLOR: '1' },
+            timeout: 30_000,
+            windowsHide: true,
+          });
+          process.stdout.write(result.stdout || '');
+          process.stderr.write(result.stderr || '');
+          if (result.error) throw result.error;
+          if (result.status !== 0) {
+            throw new Error(`cliptown-core --help exited ${result.status}`);
+          }
+          if (!result.stdout.includes('Usage: cliptown')) {
+            throw new Error('cliptown-core --help did not emit the expected CLI contract');
+          }
+
+      - name: Prove all three checkouts remain clean
+        if: always()
+        shell: node {0}
+        run: |
+          const childProcess = require('child_process');
+          for (const directory of ['cliptown-cli', 'cliptown-clients', 'cliptown-interfaces']) {
+            const result = childProcess.spawnSync(
+              'git',
+              ['-C', directory, 'status', '--porcelain=v1', '--untracked-files=all'],
+              { encoding: 'utf8', windowsHide: true },
+            );
+            if (result.status !== 0) {
+              process.stderr.write(result.stderr || `git status failed in ${directory}\n`);
+              process.exit(result.status ?? 1);
+            }
+            if (result.stdout.trim()) {
+              throw new Error(`${directory} was mutated by validation:\n${result.stdout}`);
+            }
+          }
 
   flags-contract:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the exact CLI revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
       - name: Install pinned flags2env
         run: ./scripts/install-flags2env.sh
       - name: Audit command and environment contract
         run: flags2env audit
       - name: Generate Bash completion contract
         run: flags2env completion bash cliptown > /dev/null
+      - name: Prove flags validation remains source-clean
+        run: test -z "$(git status --porcelain=v1 --untracked-files=all)"
