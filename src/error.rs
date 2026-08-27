@@ -34,8 +34,8 @@ impl CliError {
     }
 
     pub fn report(&self, json: bool) {
-        if json {
-            eprintln!(
+        match json {
+            true => eprintln!(
                 "{}",
                 serde_json::json!({
                     "schema_version": 1,
@@ -45,9 +45,8 @@ impl CliError {
                         "message": self.to_string(),
                     }
                 })
-            );
-        } else {
-            eprintln!("cliptown: {self}");
+            ),
+            false => eprintln!("cliptown: {self}"),
         }
     }
 }
