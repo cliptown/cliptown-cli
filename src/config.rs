@@ -22,14 +22,7 @@ impl RuntimeConfig {
             .unwrap_or_else(|_| "https://api.cliptown.app".into())
             .trim_end_matches('/')
             .to_owned();
-        let secure = endpoint.starts_with("https://")
-            || endpoint.starts_with("http://localhost")
-            || endpoint.starts_with("http://127.0.0.1");
-        if !secure {
-            return Err(CliError::Configuration(
-                "endpoint must use HTTPS outside localhost".into(),
-            ));
-        }
+        require_secure_endpoint(&endpoint)?;
         let json = Self::output_json_requested();
         let dirs = ProjectDirs::from("app", "ClipTown", "ClipTown")
             .ok_or_else(|| CliError::Configuration("cannot resolve config directory".into()))?;
@@ -38,5 +31,29 @@ impl RuntimeConfig {
             json,
             config_dir: dirs.config_dir().to_path_buf(),
         })
+    }
+}
+
+fn require_secure_endpoint(endpoint: &str) -> Result<(), CliError> {
+    match endpoint {
+        value if value.starts_with("https://") => Ok(()),
+        value if value.starts_with("http://localhost") => Ok(()),
+        value if value.starts_with("http://127.0.0.1") => Ok(()),
+        _ => Err(CliError::Configuration(
+            "endpoint must use HTTPS outside localhost".into(),
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::require_secure_endpoint;
+
+    #[test]
+    fn localhost_http_and_https_are_accepted() {
+        assert!(require_secure_endpoint("https://api.cliptown.app").is_ok());
+        assert!(require_secure_endpoint("http://localhost:8080").is_ok());
+        assert!(require_secure_endpoint("http://127.0.0.1:8080").is_ok());
+        assert!(require_secure_endpoint("http://example.com").is_err());
     }
 }
