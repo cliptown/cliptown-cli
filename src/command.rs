@@ -1,8 +1,12 @@
-use std::{env, io::Read};
+use std::io::Read;
 
 use arboard::Clipboard;
 
-use crate::{config::RuntimeConfig, error::CliError};
+use crate::{
+    config::RuntimeConfig,
+    env_map::{truthy, value, EnvMap},
+    error::CliError,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
@@ -54,10 +58,17 @@ pub enum Command {
 }
 
 impl Command {
+    #[allow(dead_code)]
     pub fn from_env() -> Result<Self, CliError> {
-        let path = env::var("CLIPTOWN_COMMAND").unwrap_or_default();
+        Self::from_env_map(&std::env::vars().collect())
+    }
+
+    pub fn from_env_map(env: &EnvMap) -> Result<Self, CliError> {
+        let path = value(env, "CLIPTOWN_COMMAND")
+            .unwrap_or_default()
+            .to_owned();
         let args: Vec<String> =
-            serde_json::from_str(&env::var("CLIPTOWN_POSITIONALS").unwrap_or_else(|_| "[]".into()))
+            serde_json::from_str(value(env, "CLIPTOWN_POSITIONALS").unwrap_or("[]"))
                 .map_err(|error| CliError::Parsing(error.to_string()))?;
         let argument = |index: usize| {
             args.get(index)
@@ -67,8 +78,8 @@ impl Command {
 
         let command = match path.as_str() {
             "auth login" => {
-                let reauth_days = env::var("CLIPTOWN_REAUTH_DAYS")
-                    .unwrap_or_else(|_| "10".into())
+                let reauth_days = value(env, "CLIPTOWN_REAUTH_DAYS")
+                    .unwrap_or("10")
                     .parse()
                     .map_err(|_| CliError::Parsing("reauth-days must be an integer".into()))?;
                 if !(1..=20).contains(&reauth_days) {
@@ -79,8 +90,8 @@ impl Command {
             "auth status" => Self::AuthStatus,
             "auth logout" => Self::AuthLogout,
             "clip list" => {
-                let limit: u32 = env::var("CLIPTOWN_LIMIT")
-                    .unwrap_or_else(|_| "20".into())
+                let limit: u32 = value(env, "CLIPTOWN_LIMIT")
+                    .unwrap_or("20")
                     .parse()
                     .map_err(|_| CliError::Parsing("limit must be an integer".into()))?;
                 if !(1..=500).contains(&limit) {
@@ -92,10 +103,10 @@ impl Command {
                 clip_id: argument(0)?,
             },
             "clip add" => Self::ClipAdd {
-                file: env::var("CLIPTOWN_FILE").ok(),
-                from_stdin: bool_env("CLIPTOWN_STDIN"),
-                from_clipboard: bool_env("CLIPTOWN_FROM_CLIPBOARD"),
-                pin: bool_env("CLIPTOWN_PIN_CLIP"),
+                file: value(env, "CLIPTOWN_FILE").map(str::to_owned),
+                from_stdin: truthy(env, "CLIPTOWN_STDIN"),
+                from_clipboard: truthy(env, "CLIPTOWN_FROM_CLIPBOARD"),
+                pin: truthy(env, "CLIPTOWN_PIN_CLIP"),
             },
             "clip pin" => Self::ClipPin {
                 clip_id: argument(0)?,
@@ -112,20 +123,24 @@ impl Command {
                 clip_id: argument(0)?,
             },
             "clip search" => {
-                let query = match env::var("CLIPTOWN_QUERY") {
-                    Ok(query) => query,
-                    Err(_) => argument(0)?,
+                let query = match value(env, "CLIPTOWN_QUERY") {
+                    Some(query) => query.to_owned(),
+                    None => argument(0)?,
                 };
                 Self::ClipSearch {
                     query,
-                    mode: env::var("CLIPTOWN_SEARCH_MODE").unwrap_or_else(|_| "local_only".into()),
+                    mode: value(env, "CLIPTOWN_SEARCH_MODE")
+                        .unwrap_or("local_only")
+                        .to_owned(),
                 }
             }
             "sync pull" => Self::SyncPull,
             "sync push" => Self::SyncPush,
             "sync status" => Self::SyncStatus,
             "sync pair" => Self::SyncPair {
-                transport: env::var("CLIPTOWN_PAIR_TRANSPORT").unwrap_or_else(|_| "wifi".into()),
+                transport: value(env, "CLIPTOWN_PAIR_TRANSPORT")
+                    .unwrap_or("wifi")
+                    .to_owned(),
             },
             "config get" => Self::ConfigGet { key: argument(0)? },
             "config set" => Self::ConfigSet {
@@ -261,10 +276,6 @@ impl Command {
     }
 }
 
-fn bool_env(key: &str) -> bool {
-    matches!(env::var(key).as_deref(), Ok("true" | "1" | "yes"))
-}
-
 fn emit_result(config: &RuntimeConfig, result: serde_json::Value, plain: String) {
     if config.json {
         println!(
@@ -282,43 +293,42 @@ fn emit_result(config: &RuntimeConfig, result: serde_json::Value, plain: String)
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use super::*;
-
-    static LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn parses_login_window() {
-        let _guard = LOCK.lock().unwrap();
-        env::set_var("CLIPTOWN_COMMAND", "auth login");
-        env::set_var("CLIPTOWN_REAUTH_DAYS", "20");
-        env::set_var("CLIPTOWN_POSITIONALS", "[]");
+        let before = std::env::var_os("CLIPTOWN_REAUTH_DAYS");
+        let env = EnvMap::from([
+            ("CLIPTOWN_COMMAND".into(), "auth login".into()),
+            ("CLIPTOWN_REAUTH_DAYS".into(), "20".into()),
+            ("CLIPTOWN_POSITIONALS".into(), "[]".into()),
+        ]);
         assert_eq!(
-            Command::from_env().unwrap(),
+            Command::from_env_map(&env).unwrap(),
             Command::AuthLogin { reauth_days: 20 }
         );
+        assert_eq!(std::env::var_os("CLIPTOWN_REAUTH_DAYS"), before);
     }
 
     #[test]
     fn rejects_long_window() {
-        let _guard = LOCK.lock().unwrap();
-        env::set_var("CLIPTOWN_COMMAND", "auth login");
-        env::set_var("CLIPTOWN_REAUTH_DAYS", "21");
-        env::set_var("CLIPTOWN_POSITIONALS", "[]");
-        assert!(Command::from_env().is_err());
+        let env = EnvMap::from([
+            ("CLIPTOWN_COMMAND".into(), "auth login".into()),
+            ("CLIPTOWN_REAUTH_DAYS".into(), "21".into()),
+            ("CLIPTOWN_POSITIONALS".into(), "[]".into()),
+        ]);
+        assert!(Command::from_env_map(&env).is_err());
     }
 
     #[test]
     fn parses_stdin_clip_source() {
-        let _guard = LOCK.lock().unwrap();
-        env::set_var("CLIPTOWN_COMMAND", "clip add");
-        env::set_var("CLIPTOWN_POSITIONALS", "[]");
-        env::set_var("CLIPTOWN_STDIN", "true");
-        env::remove_var("CLIPTOWN_FILE");
-        env::remove_var("CLIPTOWN_FROM_CLIPBOARD");
+        let env = EnvMap::from([
+            ("CLIPTOWN_COMMAND".into(), "clip add".into()),
+            ("CLIPTOWN_POSITIONALS".into(), "[]".into()),
+            ("CLIPTOWN_STDIN".into(), "true".into()),
+        ]);
         assert_eq!(
-            Command::from_env().unwrap(),
+            Command::from_env_map(&env).unwrap(),
             Command::ClipAdd {
                 file: None,
                 from_stdin: true,
@@ -326,6 +336,5 @@ mod tests {
                 pin: false,
             }
         );
-        env::remove_var("CLIPTOWN_STDIN");
     }
 }

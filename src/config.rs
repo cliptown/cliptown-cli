@@ -1,5 +1,6 @@
 use directories::ProjectDirs;
 
+use crate::env_map::{truthy, value, EnvMap};
 use crate::error::CliError;
 
 #[derive(Debug, Clone)]
@@ -11,15 +12,21 @@ pub struct RuntimeConfig {
 
 impl RuntimeConfig {
     pub fn output_json_requested() -> bool {
-        matches!(
-            std::env::var("CLIPTOWN_OUTPUT_JSON").as_deref(),
-            Ok("true" | "1")
-        )
+        Self::output_json_from(&std::env::vars().collect())
     }
 
+    pub fn output_json_from(env: &EnvMap) -> bool {
+        truthy(env, "CLIPTOWN_OUTPUT_JSON")
+    }
+
+    #[allow(dead_code)]
     pub fn from_env() -> Result<Self, CliError> {
-        let endpoint = std::env::var("CLIPTOWN_ENDPOINT")
-            .unwrap_or_else(|_| "https://api.cliptown.app".into())
+        Self::from_env_map(&std::env::vars().collect())
+    }
+
+    pub fn from_env_map(env: &EnvMap) -> Result<Self, CliError> {
+        let endpoint = value(env, "CLIPTOWN_ENDPOINT")
+            .unwrap_or("https://api.cliptown.app")
             .trim_end_matches('/')
             .to_owned();
         let secure = endpoint.starts_with("https://")
@@ -30,7 +37,7 @@ impl RuntimeConfig {
                 "endpoint must use HTTPS outside localhost".into(),
             ));
         }
-        let json = Self::output_json_requested();
+        let json = Self::output_json_from(env);
         let dirs = ProjectDirs::from("app", "ClipTown", "ClipTown")
             .ok_or_else(|| CliError::Configuration("cannot resolve config directory".into()))?;
         Ok(Self {

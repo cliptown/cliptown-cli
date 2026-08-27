@@ -1,6 +1,8 @@
 mod command;
 mod config;
+mod env_map;
 mod error;
+mod flags;
 
 use command::Command;
 use config::RuntimeConfig;
@@ -36,8 +38,9 @@ async fn main() {
 }
 
 async fn run() -> Result<(), error::CliError> {
-    let config = RuntimeConfig::from_env()?;
-    let command = Command::from_env()?;
+    let env = flags::apply_cli_flags()?;
+    let config = RuntimeConfig::from_env_map(&env)?;
+    let command = Command::from_env_map(&env)?;
     command.execute(config).await
 }
 
