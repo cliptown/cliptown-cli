@@ -101,3 +101,16 @@ default = "wifi"
 [commands.config.commands.set]
 [commands.doctor]
 help = "Check API, keyring, clipboard, auth, and peer-sync prerequisites."
+
+
+[flags.cliptown-command]
+env = "CLIPTOWN_COMMAND"
+long = "cliptown-command"
+type = "string"
+help = "Runtime environment key CLIPTOWN_COMMAND."
+
+[flags.cliptown-positionals]
+env = "CLIPTOWN_POSITIONALS"
+long = "cliptown-positionals"
+type = "string"
+help = "Runtime environment key CLIPTOWN_POSITIONALS."
