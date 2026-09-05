@@ -36,7 +36,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: cliptown/cliptown-clients
-          ref: 8ee49a596c32950efa49f17a5894a5137da633b2
+          ref: e0603cb21944b96f9fa67eeb34715cf6c5612e82
           path: cliptown-clients
           fetch-depth: 1
           persist-credentials: false
@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: cliptown/cliptown-interfaces
-          ref: 85581536948217b0d9433a900a290eee000bc51c
+          ref: c66c6aa1a20dd46bb9d7f91a2c19d87e9ee4f1a6
           path: cliptown-interfaces
           fetch-depth: 1
           persist-credentials: false
