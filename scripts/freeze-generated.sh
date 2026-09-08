@@ -8,7 +8,8 @@ if [[ ! -d "$root" ]]; then
   echo "freeze-generated: not a directory: $root" >&2
   exit 1
 fi
-# README.md stays writable so the policy doc can be updated.
+# README.md stays writable so the policy doc can be updated. Only the exact
+# machine-readable marker authorizes a permission change; prose is not policy.
 find "$root" \( \
   -path '*/node_modules/*' -o \
   -path '*/target/*' -o \
@@ -19,13 +20,11 @@ find "$root" \( \
   if [[ ! -f "$dir/README.md" ]]; then
     continue
   fi
-  if grep -q 'not frozen' "$dir/README.md" 2>/dev/null; then
+  if ! grep -qx '<!-- generated-policy: frozen -->' "$dir/README.md"; then
     continue
   fi
-  if ! grep -qi 'frozen' "$dir/README.md" 2>/dev/null; then
-    continue
-  fi
-  find "$dir" -type f ! -name 'README.md' ! -name '.gitkeep' -print0 |
-    xargs -0 chmod a-w
+  while IFS= read -r -d '' artifact; do
+    chmod a-w "$artifact"
+  done < <(find "$dir" -type f ! -name 'README.md' ! -name '.gitkeep' -print0)
   echo "froze $dir"
 done

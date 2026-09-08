@@ -1,6 +1,12 @@
+<!-- generated-policy: frozen -->
+
 # `generated/` — frozen artifacts (read-only)
 
 This tree is **generated**. Do not hand-edit adapters here.
+
+The machine-readable comment above is the source of truth for
+`scripts/freeze-generated.sh`. Generated trees that must remain editable use
+`<!-- generated-policy: writable -->` instead.
 
 Typical producers:
 
