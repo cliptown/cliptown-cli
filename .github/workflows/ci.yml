@@ -161,5 +161,7 @@ jobs:
         run: flags2env audit
       - name: Generate Bash completion contract
         run: flags2env completion bash cliptown > /dev/null
+      - name: Test generated-tree permission policy
+        run: ./scripts/test-freeze-generated.sh
       - name: Prove flags validation remains source-clean
         run: test -z "$(git status --porcelain=v1 --untracked-files=all)"
