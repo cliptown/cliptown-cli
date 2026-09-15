@@ -21,6 +21,14 @@ pub fn current() -> RuntimePolicy {
     })
 }
 
+pub fn emit_informational(value: &str) -> Result<(), CliError> {
+    let stdout = io::stdout();
+    let mut emitter = ProtocolEmitter::new(stdout.lock(), StreamRole::Primary);
+    match top_level_io(emitter.emit_primary_human_line(value.trim_end_matches('\n')))? {
+        EmitDisposition::Written | EmitDisposition::ConsumerClosed => Ok(()),
+    }
+}
+
 pub fn emit_result(json: bool, result: serde_json::Value, plain: String) -> Result<(), CliError> {
     let runtime = current();
     let stdout = io::stdout();
