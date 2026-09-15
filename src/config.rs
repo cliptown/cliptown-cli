@@ -20,10 +20,6 @@ impl RuntimeConfig {
             })
     }
 
-    pub fn output_json_requested() -> bool {
-        Self::output_json_override().unwrap_or(false)
-    }
-
     pub fn from_env(json: bool) -> Result<Self, CliError> {
         let endpoint = std::env::var("CLIPTOWN_ENDPOINT")
             .unwrap_or_else(|_| "https://api.cliptown.app".into())
