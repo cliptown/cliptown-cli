@@ -176,7 +176,7 @@ impl Command {
             Self::SyncPull => "sync.pull",
             Self::SyncPush => "sync.push",
             Self::SyncStatus => "sync.status",
-            Self::SyncPair => "sync.pair",
+            Self::SyncPair { .. } => "sync.pair",
             Self::ConfigGet { .. } => "config.get",
             Self::ConfigSet { .. } => "config.set",
             Self::Doctor => "doctor",
