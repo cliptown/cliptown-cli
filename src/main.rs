@@ -46,7 +46,10 @@ async fn main() {
     };
 
     if let Some(output) = informational_output(&shared.passthrough) {
-        print!("{output}");
+        if let Err(error) = runtime::emit_informational(output) {
+            runtime::emit_error(&error, json);
+            std::process::exit(error.exit_code());
+        }
         return;
     }
 
