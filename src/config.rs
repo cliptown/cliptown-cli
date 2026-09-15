@@ -11,13 +11,13 @@ pub struct RuntimeConfig {
 
 impl RuntimeConfig {
     pub fn output_json_override() -> Option<bool> {
-        std::env::var("CLIPTOWN_OUTPUT_JSON").ok().and_then(|value| {
-            match value.trim().to_ascii_lowercase().as_str() {
+        std::env::var("CLIPTOWN_OUTPUT_JSON")
+            .ok()
+            .and_then(|value| match value.trim().to_ascii_lowercase().as_str() {
                 "1" | "true" | "yes" | "on" => Some(true),
                 "0" | "false" | "no" | "off" => Some(false),
                 _ => None,
-            }
-        })
+            })
     }
 
     pub fn output_json_requested() -> bool {
