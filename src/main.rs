@@ -5,7 +5,7 @@ mod runtime;
 
 use command::Command;
 use config::RuntimeConfig;
-use ores_clis_core::{EnvironmentHints, TerminalState, parse_shared_argv};
+use ores_clis_core::{parse_shared_argv, EnvironmentHints, TerminalState};
 
 const HELP: &str = "cliptown 0.1.0\n\nUsage: cliptown [global options] <command>\n\nCommands:\n  auth login|status|logout\n  clip list|get|add|pin|unpin|delete|copy|search\n  sync pull|push|status|pair\n  config get|set\n  doctor\n\nOptions:\n  -h, --help       Print this help\n  -V, --version    Print the CLI version\n\nShared options:\n  --color / --no-color\n  --json / --no-json\n  --output auto|human|json\n  --quiet / --silent\n  --log-level silent|quiet|error|warn|info|debug|trace\n\nDetailed domain flag help is generated from .cli-flags.toml.\n";
 const VERSION: &str = concat!("cliptown ", env!("CARGO_PKG_VERSION"), "\n");
