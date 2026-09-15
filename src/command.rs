@@ -6,50 +6,27 @@ use crate::{config::RuntimeConfig, error::CliError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
-    AuthLogin {
-        reauth_days: u8,
-    },
+    AuthLogin { reauth_days: u8 },
     AuthStatus,
     AuthLogout,
-    ClipList {
-        limit: u32,
-    },
-    ClipGet {
-        clip_id: String,
-    },
+    ClipList { limit: u32 },
+    ClipGet { clip_id: String },
     ClipAdd {
         file: Option<String>,
         from_stdin: bool,
         from_clipboard: bool,
         pin: bool,
     },
-    ClipPin {
-        clip_id: String,
-        pinned: bool,
-    },
-    ClipDelete {
-        clip_id: String,
-    },
-    ClipCopy {
-        clip_id: String,
-    },
-    ClipSearch {
-        query: String,
-        mode: String,
-    },
+    ClipPin { clip_id: String, pinned: bool },
+    ClipDelete { clip_id: String },
+    ClipCopy { clip_id: String },
+    ClipSearch { query: String, mode: String },
     SyncPull,
     SyncPush,
     SyncStatus,
-    SyncPair {
-        transport: String,
-    },
-    ConfigGet {
-        key: String,
-    },
-    ConfigSet {
-        key: String,
-        value: String,
-    },
+    SyncPair { transport: String },
+    ConfigGet { key: String },
+    ConfigSet { key: String, value: String },
     Doctor,
 }
 
@@ -88,29 +65,17 @@ impl Command {
                 }
                 Self::ClipList { limit }
             }
-            "clip get" => Self::ClipGet {
-                clip_id: argument(0)?,
-            },
+            "clip get" => Self::ClipGet { clip_id: argument(0)? },
             "clip add" => Self::ClipAdd {
                 file: env::var("CLIPTOWN_FILE").ok(),
                 from_stdin: bool_env("CLIPTOWN_STDIN"),
                 from_clipboard: bool_env("CLIPTOWN_FROM_CLIPBOARD"),
                 pin: bool_env("CLIPTOWN_PIN_CLIP"),
             },
-            "clip pin" => Self::ClipPin {
-                clip_id: argument(0)?,
-                pinned: true,
-            },
-            "clip unpin" => Self::ClipPin {
-                clip_id: argument(0)?,
-                pinned: false,
-            },
-            "clip delete" => Self::ClipDelete {
-                clip_id: argument(0)?,
-            },
-            "clip copy" => Self::ClipCopy {
-                clip_id: argument(0)?,
-            },
+            "clip pin" => Self::ClipPin { clip_id: argument(0)?, pinned: true },
+            "clip unpin" => Self::ClipPin { clip_id: argument(0)?, pinned: false },
+            "clip delete" => Self::ClipDelete { clip_id: argument(0)? },
+            "clip copy" => Self::ClipCopy { clip_id: argument(0)? },
             "clip search" => {
                 let query = match env::var("CLIPTOWN_QUERY") {
                     Ok(query) => query,
@@ -128,16 +93,9 @@ impl Command {
                 transport: env::var("CLIPTOWN_PAIR_TRANSPORT").unwrap_or_else(|_| "wifi".into()),
             },
             "config get" => Self::ConfigGet { key: argument(0)? },
-            "config set" => Self::ConfigSet {
-                key: argument(0)?,
-                value: argument(1)?,
-            },
+            "config set" => Self::ConfigSet { key: argument(0)?, value: argument(1)? },
             "doctor" => Self::Doctor,
-            _ => {
-                return Err(CliError::Parsing(format!(
-                    "unknown or missing command: {path}"
-                )))
-            }
+            _ => return Err(CliError::Parsing(format!("unknown or missing command: {path}"))),
         };
         Ok(command)
     }
@@ -161,16 +119,10 @@ impl Command {
                         config.config_dir.display(),
                         clipboard
                     ),
-                );
+                )?;
             }
-            Self::ClipAdd {
-                file,
-                from_stdin,
-                from_clipboard,
-                pin,
-            } => {
+            Self::ClipAdd { file, from_stdin, from_clipboard, pin } => {
                 let (payload, source) = read_clip_source(file, from_stdin, from_clipboard)?;
-
                 emit_result(
                     &config,
                     serde_json::json!({
@@ -180,11 +132,8 @@ impl Command {
                         "byte_count": payload.len(),
                         "pinned": pin,
                     }),
-                    format!(
-                        "queued encrypted clip ({} bytes, pinned={pin})",
-                        payload.len()
-                    ),
-                );
+                    format!("queued encrypted clip ({} bytes, pinned={pin})", payload.len()),
+                )?;
             }
             Self::AuthLogin { reauth_days } => emit_result(
                 &config,
@@ -193,11 +142,8 @@ impl Command {
                     "status": "not_implemented",
                     "reauth_days": reauth_days,
                 }),
-                format!(
-                    "start Supabase PKCE + 3FA/shared-auth login \
-                     (reauth every {reauth_days} days)"
-                ),
-            ),
+                format!("start Supabase PKCE + 3FA/shared-auth login (reauth every {reauth_days} days)"),
+            )?,
             other => {
                 let command = other.path();
                 emit_result(
@@ -208,7 +154,7 @@ impl Command {
                         "endpoint": config.endpoint,
                     }),
                     format!("{command} is not implemented against {}", config.endpoint),
-                );
+                )?;
             }
         }
         Ok(())
@@ -230,7 +176,7 @@ impl Command {
             Self::SyncPull => "sync.pull",
             Self::SyncPush => "sync.push",
             Self::SyncStatus => "sync.status",
-            Self::SyncPair { .. } => "sync.pair",
+            Self::SyncPair => "sync.pair",
             Self::ConfigGet { .. } => "config.get",
             Self::ConfigSet { .. } => "config.set",
             Self::Doctor => "doctor",
@@ -248,61 +194,37 @@ enum ClipSource {
     File(String),
 }
 
-fn selected_clip_source(
-    file: Option<String>,
-    from_stdin: bool,
-    from_clipboard: bool,
-) -> Result<ClipSource, CliError> {
+fn selected_clip_source(file: Option<String>, from_stdin: bool, from_clipboard: bool) -> Result<ClipSource, CliError> {
     match (file, from_stdin, from_clipboard) {
         (None, false, true) => Ok(ClipSource::Clipboard),
         (None, true, false) => Ok(ClipSource::Stdin),
         (Some(path), false, false) => Ok(ClipSource::File(path)),
-        _ => Err(CliError::Parsing(
-            "choose exactly one of --stdin, --file, or --from-clipboard".into(),
-        )),
+        _ => Err(CliError::Parsing("choose exactly one of --stdin, --file, or --from-clipboard".into())),
     }
 }
 
-fn read_clip_source(
-    file: Option<String>,
-    from_stdin: bool,
-    from_clipboard: bool,
-) -> Result<(String, &'static str), CliError> {
+fn read_clip_source(file: Option<String>, from_stdin: bool, from_clipboard: bool) -> Result<(String, &'static str), CliError> {
     match selected_clip_source(file, from_stdin, from_clipboard)? {
         ClipSource::Clipboard => Clipboard::new()
             .and_then(|mut clipboard| clipboard.get_text())
             .map(|payload| (payload, "clipboard"))
             .map_err(|error| CliError::Clipboard(error.to_string())),
         ClipSource::Stdin => {
-            let payload = {
-                let mut payload = String::new();
-                std::io::stdin().read_to_string(&mut payload)?;
-                payload
-            };
+            let mut payload = String::new();
+            std::io::stdin().read_to_string(&mut payload)?;
             Ok((payload, "stdin"))
         }
         ClipSource::File(path) => Ok((std::fs::read_to_string(path)?, "file")),
     }
 }
 
-fn emit_result(config: &RuntimeConfig, result: serde_json::Value, plain: String) {
-    match config.json {
-        true => println!(
-            "{}",
-            serde_json::json!({
-                "schema_version": 1,
-                "ok": true,
-                "result": result,
-            })
-        ),
-        false => println!("{plain}"),
-    }
+fn emit_result(config: &RuntimeConfig, result: serde_json::Value, plain: String) -> Result<(), CliError> {
+    crate::runtime::emit_result(config.json, result, plain)
 }
 
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
-
     use super::*;
 
     static LOCK: Mutex<()> = Mutex::new(());
@@ -313,10 +235,7 @@ mod tests {
         env::set_var("CLIPTOWN_COMMAND", "auth login");
         env::set_var("CLIPTOWN_REAUTH_DAYS", "20");
         env::set_var("CLIPTOWN_POSITIONALS", "[]");
-        assert_eq!(
-            Command::from_env().unwrap(),
-            Command::AuthLogin { reauth_days: 20 }
-        );
+        assert_eq!(Command::from_env().unwrap(), Command::AuthLogin { reauth_days: 20 });
     }
 
     #[test]
@@ -338,26 +257,15 @@ mod tests {
         env::remove_var("CLIPTOWN_FROM_CLIPBOARD");
         assert_eq!(
             Command::from_env().unwrap(),
-            Command::ClipAdd {
-                file: None,
-                from_stdin: true,
-                from_clipboard: false,
-                pin: false,
-            }
+            Command::ClipAdd { file: None, from_stdin: true, from_clipboard: false, pin: false }
         );
         env::remove_var("CLIPTOWN_STDIN");
     }
 
     #[test]
     fn clip_source_match_excludes_mixed_and_missing_inputs() {
-        assert!(matches!(
-            selected_clip_source(None, true, false).unwrap(),
-            ClipSource::Stdin
-        ));
-        assert!(matches!(
-            selected_clip_source(Some("notes.txt".into()), false, false).unwrap(),
-            ClipSource::File(_)
-        ));
+        assert!(matches!(selected_clip_source(None, true, false).unwrap(), ClipSource::Stdin));
+        assert!(matches!(selected_clip_source(Some("notes.txt".into()), false, false).unwrap(), ClipSource::File(_)));
         assert!(selected_clip_source(None, true, true).is_err());
         assert!(selected_clip_source(None, false, false).is_err());
     }
