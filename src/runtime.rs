@@ -2,8 +2,8 @@ use std::io;
 use std::sync::OnceLock;
 
 use ores_clis_core::{
-    CliPolicy, ColorRole, EmitDisposition, EnvironmentHints, LogLevel, ProtocolEmitter,
-    RuntimePolicy, StreamRole, TerminalState, paint, top_level_io,
+    paint, top_level_io, CliPolicy, ColorRole, EmitDisposition, EnvironmentHints, LogLevel,
+    ProtocolEmitter, RuntimePolicy, StreamRole, TerminalState,
 };
 
 use crate::error::CliError;
@@ -67,7 +67,11 @@ pub fn emit_error(error: &CliError, json: bool) {
         })
         .to_string()
     } else {
-        paint(runtime.color_stderr(), ColorRole::Error, format!("cliptown: {error}"))
+        paint(
+            runtime.color_stderr(),
+            ColorRole::Error,
+            format!("cliptown: {error}"),
+        )
     };
     let _ = top_level_io(emitter.emit_diagnostic_line(&line));
 }
