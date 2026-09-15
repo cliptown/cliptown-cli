@@ -34,19 +34,6 @@ impl CliError {
     }
 
     pub fn report(&self, json: bool) {
-        match json {
-            true => eprintln!(
-                "{}",
-                serde_json::json!({
-                    "schema_version": 1,
-                    "ok": false,
-                    "error": {
-                        "code": self.code(),
-                        "message": self.to_string(),
-                    }
-                })
-            ),
-            false => eprintln!("cliptown: {self}"),
-        }
+        crate::runtime::emit_error(self, json);
     }
 }
