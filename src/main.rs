@@ -1,11 +1,13 @@
 mod command;
 mod config;
 mod error;
+mod runtime;
 
 use command::Command;
 use config::RuntimeConfig;
+use ores_clis_core::{EnvironmentHints, TerminalState, parse_shared_argv};
 
-const HELP: &str = "cliptown 0.1.0\n\nUsage: cliptown [global options] <command>\n\nCommands:\n  auth login|status|logout\n  clip list|get|add|pin|unpin|delete|copy|search\n  sync pull|push|status|pair\n  config get|set\n  doctor\n\nOptions:\n  -h, --help       Print this help\n  -V, --version    Print the CLI version\n\nDetailed flag help is generated from .cli-flags.toml.\n";
+const HELP: &str = "cliptown 0.1.0\n\nUsage: cliptown [global options] <command>\n\nCommands:\n  auth login|status|logout\n  clip list|get|add|pin|unpin|delete|copy|search\n  sync pull|push|status|pair\n  config get|set\n  doctor\n\nOptions:\n  -h, --help       Print this help\n  -V, --version    Print the CLI version\n\nShared options:\n  --color / --no-color\n  --json / --no-json\n  --output auto|human|json\n  --quiet / --silent\n  --log-level silent|quiet|error|warn|info|debug|trace\n\nDetailed domain flag help is generated from .cli-flags.toml.\n";
 const VERSION: &str = concat!("cliptown ", env!("CARGO_PKG_VERSION"), "\n");
 
 fn informational_output<I, S>(arguments: I) -> Option<&'static str>
@@ -24,19 +26,38 @@ where
 
 #[tokio::main]
 async fn main() {
-    if let Some(output) = informational_output(std::env::args().skip(1)) {
+    let argv = std::env::args().collect::<Vec<_>>();
+    let shared = match parse_shared_argv(argv.iter().skip(1).cloned()) {
+        Ok(shared) => shared,
+        Err(error) => {
+            eprintln!("cliptown: {error}");
+            std::process::exit(2);
+        }
+    };
+    let policy = shared
+        .policy
+        .resolve(TerminalState::detect(), EnvironmentHints::detect());
+    runtime::install(policy);
+
+    let json = if shared.output_was_explicit() {
+        policy.json()
+    } else {
+        RuntimeConfig::output_json_override().unwrap_or_else(|| policy.json())
+    };
+
+    if let Some(output) = informational_output(&shared.passthrough) {
         print!("{output}");
         return;
     }
 
-    if let Err(error) = run().await {
-        error.report(RuntimeConfig::output_json_requested());
+    if let Err(error) = run(json).await {
+        error.report(json);
         std::process::exit(error.exit_code());
     }
 }
 
-async fn run() -> Result<(), error::CliError> {
-    let config = RuntimeConfig::from_env()?;
+async fn run(json: bool) -> Result<(), error::CliError> {
+    let config = RuntimeConfig::from_env(json)?;
     let command = Command::from_env()?;
     command.execute(config).await
 }
@@ -51,5 +72,12 @@ mod tests {
         assert_eq!(informational_output(["-h"]), Some(HELP));
         assert_eq!(informational_output(["--version"]), Some(VERSION));
         assert_eq!(informational_output(["doctor"]), None);
+    }
+
+    #[test]
+    fn shared_flags_do_not_hide_informational_output() {
+        let parsed = parse_shared_argv(["--no-color".to_owned(), "--help".to_owned()])
+            .expect("shared arguments");
+        assert_eq!(informational_output(&parsed.passthrough), Some(HELP));
     }
 }
