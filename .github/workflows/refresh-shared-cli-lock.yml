@@ -1,0 +1,63 @@
+name: refresh shared CLI Cargo lock
+
+on:
+  push:
+    branches:
+      - feat/shared-cli-runtime-v1
+    paths:
+      - Cargo.toml
+      - .github/workflows/refresh-shared-cli-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact CLI branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/shared-cli-runtime-v1
+          path: cliptown-cli
+          fetch-depth: 1
+      - name: Check out exact clients dependency
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: cliptown/cliptown-clients
+          ref: e0603cb21944b96f9fa67eeb34715cf6c5612e82
+          path: cliptown-clients
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Check out exact interfaces dependency
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: cliptown/cliptown-interfaces
+          ref: c66c6aa1a20dd46bb9d7f91a2c19d87e9ee4f1a6
+          path: cliptown-interfaces
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install Rust and native headers
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev libsecret-1-dev libdbus-1-dev pkg-config
+      - name: Refresh lock through Cargo
+        working-directory: cliptown-cli
+        run: cargo check --all-targets
+      - name: Commit generated lock and remove temporary workflow
+        working-directory: cliptown-cli
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/refresh-shared-cli-lock.yml
+          git add Cargo.lock
+          if git diff --cached --quiet; then
+            echo "No lock refresh required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: refresh Cargo lock for shared CLI runtime"
+          git push origin HEAD:feat/shared-cli-runtime-v1
