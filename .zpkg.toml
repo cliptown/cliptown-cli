@@ -16,6 +16,7 @@ url = "https://github.com/cliptown/cliptown-cli"
 "cliptown/cliptown-interfaces" = "^0.1.0"
 # Keep this draft blocked until cliptown-monorepo#15 creates and publishes it.
 "cliptown/cliptown-lib" = "^0.1.0"
+"oresoftware/ores-clis-core" = "^0.1.0"
 
 [build]
 command = "cargo build --release --locked --bin cliptown-core"
@@ -28,10 +29,11 @@ cliptown = "target/release/cliptown-core"
 include_readme = true
 tag_format = "v{version}"
 smoke_test = "test -x \"$ZED_PKG_TEST_TARGET/target/release/cliptown-core\" && \"$ZED_PKG_TEST_TARGET/target/release/cliptown-core\" --help >/dev/null"
-exclude = [".env", ".env.*", ".direnv/**", ".zed/**", ".zed-pack/**", "target/**", "tmp/**", "**/*.log", ".DS_Store"]
+exclude = [".env", ".env.*", ".direnv/**", ".zed/**", ".zed-pack/**", ".vendor/.zed/**", "target/**", "tmp/**", "**/*.log", ".DS_Store"]
 
 [install]
 adapter = "none"
+dir = ".vendor/.zed"
 
 [scripts]
 test = "cargo test --all-targets --locked"

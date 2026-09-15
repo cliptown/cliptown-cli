@@ -161,7 +161,7 @@ impl Command {
                         config.config_dir.display(),
                         clipboard
                     ),
-                );
+                )?;
             }
             Self::ClipAdd {
                 file,
@@ -170,7 +170,6 @@ impl Command {
                 pin,
             } => {
                 let (payload, source) = read_clip_source(file, from_stdin, from_clipboard)?;
-
                 emit_result(
                     &config,
                     serde_json::json!({
@@ -184,7 +183,7 @@ impl Command {
                         "queued encrypted clip ({} bytes, pinned={pin})",
                         payload.len()
                     ),
-                );
+                )?;
             }
             Self::AuthLogin { reauth_days } => emit_result(
                 &config,
@@ -194,10 +193,9 @@ impl Command {
                     "reauth_days": reauth_days,
                 }),
                 format!(
-                    "start Supabase PKCE + 3FA/shared-auth login \
-                     (reauth every {reauth_days} days)"
+                    "start Supabase PKCE + 3FA/shared-auth login (reauth every {reauth_days} days)"
                 ),
-            ),
+            )?,
             other => {
                 let command = other.path();
                 emit_result(
@@ -208,7 +206,7 @@ impl Command {
                         "endpoint": config.endpoint,
                     }),
                     format!("{command} is not implemented against {}", config.endpoint),
-                );
+                )?;
             }
         }
         Ok(())
@@ -274,36 +272,26 @@ fn read_clip_source(
             .map(|payload| (payload, "clipboard"))
             .map_err(|error| CliError::Clipboard(error.to_string())),
         ClipSource::Stdin => {
-            let payload = {
-                let mut payload = String::new();
-                std::io::stdin().read_to_string(&mut payload)?;
-                payload
-            };
+            let mut payload = String::new();
+            std::io::stdin().read_to_string(&mut payload)?;
             Ok((payload, "stdin"))
         }
         ClipSource::File(path) => Ok((std::fs::read_to_string(path)?, "file")),
     }
 }
 
-fn emit_result(config: &RuntimeConfig, result: serde_json::Value, plain: String) {
-    match config.json {
-        true => println!(
-            "{}",
-            serde_json::json!({
-                "schema_version": 1,
-                "ok": true,
-                "result": result,
-            })
-        ),
-        false => println!("{plain}"),
-    }
+fn emit_result(
+    config: &RuntimeConfig,
+    result: serde_json::Value,
+    plain: String,
+) -> Result<(), CliError> {
+    crate::runtime::emit_result(config.json, result, plain)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use super::*;
+    use std::sync::Mutex;
 
     static LOCK: Mutex<()> = Mutex::new(());
 
@@ -342,7 +330,7 @@ mod tests {
                 file: None,
                 from_stdin: true,
                 from_clipboard: false,
-                pin: false,
+                pin: false
             }
         );
         env::remove_var("CLIPTOWN_STDIN");
