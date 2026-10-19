@@ -1,0 +1,11 @@
+{
+  "contract": "cliptown.cli-standalone-readiness.v1",
+  "promotion": "blocked",
+  "exactDirectDependencies": {
+    "client": "5c92f27f61be656408ffbc9822553387d2f648d4",
+    "interfaces": "4782f0fbdaa2e4d4fdcbd637563c29d476f93f67"
+  },
+  "transitiveClientDependencyResolved": false,
+  "cleanCheckoutBuildExecuted": false,
+  "remaining": "The exact client source itself uses a ../cliptown-interfaces path from its repo checkout. Its upstream manifest must be fixed or resolved by a tested workspace patch before cargo build --locked can succeed. Do not invent Cargo.lock."
+}
