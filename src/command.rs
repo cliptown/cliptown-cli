@@ -366,7 +366,7 @@ mod tests {
         assert_eq!(read_bounded_utf8(&b"hello"[..]).unwrap(), "hello");
         assert!(read_bounded_utf8(&vec![b'x'; MAX_CLIP_BYTES + 1][..]).is_err());
         assert!(read_bounded_utf8(&[0xff, 0xfe][..]).is_err());
-        assert!(read_bounded_utf8(&"é".repeat(MAX_CLIP_BYTES / 2).as_bytes()[..]).is_ok());
+        assert!(read_bounded_utf8("é".repeat(MAX_CLIP_BYTES / 2).as_bytes()).is_ok());
     }
 
     #[test]
