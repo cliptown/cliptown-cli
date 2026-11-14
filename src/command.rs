@@ -274,7 +274,9 @@ fn enforce_clip_limit(payload: String) -> Result<String, CliError> {
 
 fn read_bounded_utf8(reader: impl Read) -> Result<String, CliError> {
     let mut bytes = Vec::new();
-    reader.take((MAX_CLIP_BYTES + 1) as u64).read_to_end(&mut bytes)?;
+    reader
+        .take((MAX_CLIP_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)?;
     if bytes.len() > MAX_CLIP_BYTES {
         return Err(CliError::Parsing(format!(
             "clip exceeds the {MAX_CLIP_BYTES}-byte input limit"
