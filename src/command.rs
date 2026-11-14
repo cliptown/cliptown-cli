@@ -261,22 +261,43 @@ fn selected_clip_source(
     }
 }
 
+const MAX_CLIP_BYTES: usize = 1024 * 1024;
+
+fn enforce_clip_limit(payload: String) -> Result<String, CliError> {
+    if payload.len() > MAX_CLIP_BYTES {
+        return Err(CliError::Parsing(format!(
+            "clip exceeds the {MAX_CLIP_BYTES}-byte input limit"
+        )));
+    }
+    Ok(payload)
+}
+
+fn read_bounded_utf8(reader: impl Read) -> Result<String, CliError> {
+    let mut bytes = Vec::new();
+    reader.take((MAX_CLIP_BYTES + 1) as u64).read_to_end(&mut bytes)?;
+    if bytes.len() > MAX_CLIP_BYTES {
+        return Err(CliError::Parsing(format!(
+            "clip exceeds the {MAX_CLIP_BYTES}-byte input limit"
+        )));
+    }
+    String::from_utf8(bytes)
+        .map_err(|_| CliError::Parsing("clip source must be valid UTF-8".into()))
+}
+
 fn read_clip_source(
     file: Option<String>,
     from_stdin: bool,
     from_clipboard: bool,
 ) -> Result<(String, &'static str), CliError> {
     match selected_clip_source(file, from_stdin, from_clipboard)? {
-        ClipSource::Clipboard => Clipboard::new()
-            .and_then(|mut clipboard| clipboard.get_text())
-            .map(|payload| (payload, "clipboard"))
-            .map_err(|error| CliError::Clipboard(error.to_string())),
-        ClipSource::Stdin => {
-            let mut payload = String::new();
-            std::io::stdin().read_to_string(&mut payload)?;
-            Ok((payload, "stdin"))
+        ClipSource::Clipboard => {
+            let payload = Clipboard::new()
+                .and_then(|mut clipboard| clipboard.get_text())
+                .map_err(|error| CliError::Clipboard(error.to_string()))?;
+            Ok((enforce_clip_limit(payload)?, "clipboard"))
         }
-        ClipSource::File(path) => Ok((std::fs::read_to_string(path)?, "file")),
+        ClipSource::Stdin => Ok((read_bounded_utf8(std::io::stdin().lock())?, "stdin")),
+        ClipSource::File(path) => Ok((read_bounded_utf8(std::fs::File::open(path)?)?, "file")),
     }
 }
 
@@ -334,6 +355,16 @@ mod tests {
             }
         );
         env::remove_var("CLIPTOWN_STDIN");
+    }
+
+    #[test]
+    fn clip_input_caps_bytes_and_rejects_invalid_utf8() {
+        assert_eq!(enforce_clip_limit("ok".into()).unwrap(), "ok");
+        assert!(enforce_clip_limit("x".repeat(MAX_CLIP_BYTES + 1)).is_err());
+        assert_eq!(read_bounded_utf8(&b"hello"[..]).unwrap(), "hello");
+        assert!(read_bounded_utf8(&vec![b'x'; MAX_CLIP_BYTES + 1][..]).is_err());
+        assert!(read_bounded_utf8(&[0xff, 0xfe][..]).is_err());
+        assert!(read_bounded_utf8(&"é".repeat(MAX_CLIP_BYTES / 2).as_bytes()[..]).is_ok());
     }
 
     #[test]
