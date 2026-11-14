@@ -25,3 +25,11 @@ The machine-readable contract is published as
 The CLI stores refresh/session material in the operating-system keyring. It never writes the account master key or plaintext clip history into config files. Clipboard reads require an explicit `clip add --from-clipboard` command.
 
 CI resolves the merged `main` branches of `cliptown-clients` and `cliptown-interfaces`, validates one cross-platform `Cargo.lock` on Linux, macOS, and Windows, and audits the default project `.cli-flags.toml` through the pinned `flags2env` source build. The compatibility run includes the additive DEN-42 device, recovery, and encrypted-object interface models without enabling unfinished auth or cryptographic operations.
+
+## Environment secrets
+
+Secrets live in this repo **encrypted** with [sops](https://github.com/getsops/sops) + [age](https://github.com/FiloSottile/age):
+`env/enc/<dev|prod>.env.enc` is committed; `just env-use <name>` decrypts it to
+`env/dec/<name>.env` (gitignored, mode 0600) and symlinks `./.env` to it. The
+Nix dev shell provides the tooling, `just env-audit` runs keyless in CI, and
+containers decrypt at `docker run` — never at build. See [`env/README.md`](env/README.md).

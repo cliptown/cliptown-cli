@@ -161,7 +161,7 @@ impl Command {
                         config.config_dir.display(),
                         clipboard
                     ),
-                );
+                )?;
             }
             Self::ClipAdd {
                 file,
@@ -169,31 +169,7 @@ impl Command {
                 from_clipboard,
                 pin,
             } => {
-                let source_count = [file.is_some(), from_stdin, from_clipboard]
-                    .into_iter()
-                    .filter(|selected| *selected)
-                    .count();
-                if source_count != 1 {
-                    return Err(CliError::Parsing(
-                        "choose exactly one of --stdin, --file, or --from-clipboard".into(),
-                    ));
-                }
-
-                let (payload, source) = if from_clipboard {
-                    Clipboard::new()
-                        .and_then(|mut clipboard| clipboard.get_text())
-                        .map(|payload| (payload, "clipboard"))
-                        .map_err(|error| CliError::Clipboard(error.to_string()))?
-                } else if from_stdin {
-                    let mut payload = String::new();
-                    std::io::stdin().read_to_string(&mut payload)?;
-                    (payload, "stdin")
-                } else if let Some(path) = file {
-                    (std::fs::read_to_string(path)?, "file")
-                } else {
-                    unreachable!("source count was validated")
-                };
-
+                let (payload, source) = read_clip_source(file, from_stdin, from_clipboard)?;
                 emit_result(
                     &config,
                     serde_json::json!({
@@ -207,7 +183,7 @@ impl Command {
                         "queued encrypted clip ({} bytes, pinned={pin})",
                         payload.len()
                     ),
-                );
+                )?;
             }
             Self::AuthLogin { reauth_days } => emit_result(
                 &config,
@@ -217,10 +193,9 @@ impl Command {
                     "reauth_days": reauth_days,
                 }),
                 format!(
-                    "start Supabase PKCE + 3FA/shared-auth login \
-                     (reauth every {reauth_days} days)"
+                    "start Supabase PKCE + 3FA/shared-auth login (reauth every {reauth_days} days)"
                 ),
-            ),
+            )?,
             other => {
                 let command = other.path();
                 emit_result(
@@ -231,7 +206,7 @@ impl Command {
                         "endpoint": config.endpoint,
                     }),
                     format!("{command} is not implemented against {}", config.endpoint),
-                );
+                )?;
             }
         }
         Ok(())
@@ -265,26 +240,58 @@ fn bool_env(key: &str) -> bool {
     matches!(env::var(key).as_deref(), Ok("true" | "1" | "yes"))
 }
 
-fn emit_result(config: &RuntimeConfig, result: serde_json::Value, plain: String) {
-    if config.json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "schema_version": 1,
-                "ok": true,
-                "result": result,
-            })
-        );
-    } else {
-        println!("{plain}");
+enum ClipSource {
+    Clipboard,
+    Stdin,
+    File(String),
+}
+
+fn selected_clip_source(
+    file: Option<String>,
+    from_stdin: bool,
+    from_clipboard: bool,
+) -> Result<ClipSource, CliError> {
+    match (file, from_stdin, from_clipboard) {
+        (None, false, true) => Ok(ClipSource::Clipboard),
+        (None, true, false) => Ok(ClipSource::Stdin),
+        (Some(path), false, false) => Ok(ClipSource::File(path)),
+        _ => Err(CliError::Parsing(
+            "choose exactly one of --stdin, --file, or --from-clipboard".into(),
+        )),
     }
+}
+
+fn read_clip_source(
+    file: Option<String>,
+    from_stdin: bool,
+    from_clipboard: bool,
+) -> Result<(String, &'static str), CliError> {
+    match selected_clip_source(file, from_stdin, from_clipboard)? {
+        ClipSource::Clipboard => Clipboard::new()
+            .and_then(|mut clipboard| clipboard.get_text())
+            .map(|payload| (payload, "clipboard"))
+            .map_err(|error| CliError::Clipboard(error.to_string())),
+        ClipSource::Stdin => {
+            let mut payload = String::new();
+            std::io::stdin().read_to_string(&mut payload)?;
+            Ok((payload, "stdin"))
+        }
+        ClipSource::File(path) => Ok((std::fs::read_to_string(path)?, "file")),
+    }
+}
+
+fn emit_result(
+    config: &RuntimeConfig,
+    result: serde_json::Value,
+    plain: String,
+) -> Result<(), CliError> {
+    crate::runtime::emit_result(config.json, result, plain)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use super::*;
+    use std::sync::Mutex;
 
     static LOCK: Mutex<()> = Mutex::new(());
 
@@ -323,9 +330,23 @@ mod tests {
                 file: None,
                 from_stdin: true,
                 from_clipboard: false,
-                pin: false,
+                pin: false
             }
         );
         env::remove_var("CLIPTOWN_STDIN");
+    }
+
+    #[test]
+    fn clip_source_match_excludes_mixed_and_missing_inputs() {
+        assert!(matches!(
+            selected_clip_source(None, true, false).unwrap(),
+            ClipSource::Stdin
+        ));
+        assert!(matches!(
+            selected_clip_source(Some("notes.txt".into()), false, false).unwrap(),
+            ClipSource::File(_)
+        ));
+        assert!(selected_clip_source(None, true, true).is_err());
+        assert!(selected_clip_source(None, false, false).is_err());
     }
 }
