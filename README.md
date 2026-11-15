@@ -12,6 +12,8 @@ bin/cliptown sync pull
 bin/cliptown --json doctor
 ```
 
+Clip additions from stdin, files, and the clipboard enforce a 1 MiB UTF-8 input cap. Oversized input is rejected before queuing; stdin and file reads consume at most 1 MiB + 1 byte.
+
 Clip payload text is intentionally not accepted as a command-line flag, where it
 could remain in shell history or process listings. Use `--stdin`, `--file`, or
 the explicit `--from-clipboard` mode; exactly one input source is required.
