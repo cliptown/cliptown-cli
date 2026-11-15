@@ -117,7 +117,7 @@ impl Command {
                     Err(_) => argument(0)?,
                 };
                 Self::ClipSearch {
-                    query,
+                    query: validate_search_query(query)?,
                     mode: env::var("CLIPTOWN_SEARCH_MODE").unwrap_or_else(|_| "local_only".into()),
                 }
             }
@@ -236,6 +236,20 @@ impl Command {
     }
 }
 
+const MAX_SEARCH_QUERY_BYTES: usize = 4096;
+
+fn validate_search_query(query: String) -> Result<String, CliError> {
+    if query.trim().is_empty()
+        || query.len() > MAX_SEARCH_QUERY_BYTES
+        || query.chars().any(char::is_control)
+    {
+        return Err(CliError::Parsing(
+            "search query must be non-empty, at most 4096 UTF-8 bytes, and contain no control characters".into(),
+        ));
+    }
+    Ok(query)
+}
+
 fn bool_env(key: &str) -> bool {
     matches!(env::var(key).as_deref(), Ok("true" | "1" | "yes"))
 }
@@ -334,6 +348,15 @@ mod tests {
             }
         );
         env::remove_var("CLIPTOWN_STDIN");
+    }
+
+    #[test]
+    fn rejects_unbounded_or_control_character_search_queries() {
+        assert!(validate_search_query("note".to_owned()).is_ok());
+        assert!(validate_search_query(" ".to_owned()).is_err());
+        assert!(validate_search_query("n\\nsecret".to_owned()).is_err());
+        assert!(validate_search_query("x".repeat(MAX_SEARCH_QUERY_BYTES + 1)).is_err());
+        assert!(validate_search_query("📝".repeat(MAX_SEARCH_QUERY_BYTES / 4 + 1)).is_err());
     }
 
     #[test]
