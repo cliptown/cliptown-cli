@@ -354,7 +354,7 @@ mod tests {
     fn rejects_unbounded_or_control_character_search_queries() {
         assert!(validate_search_query("note".to_owned()).is_ok());
         assert!(validate_search_query(" ".to_owned()).is_err());
-        assert!(validate_search_query("n\\nsecret".to_owned()).is_err());
+        assert!(validate_search_query("n\nsecret".to_owned()).is_err());
         assert!(validate_search_query("x".repeat(MAX_SEARCH_QUERY_BYTES + 1)).is_err());
         assert!(validate_search_query("📝".repeat(MAX_SEARCH_QUERY_BYTES / 4 + 1)).is_err());
     }
