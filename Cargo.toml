@@ -13,8 +13,8 @@ path = "src/main.rs"
 arboard = "3"
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
-cliptown-client-rust = { path = "../cliptown-clients/clients/rust" }
-cliptown-interfaces-rust = { path = "../cliptown-interfaces/generated/rust" }
+cliptown-client-rust = { git = "https://github.com/cliptown/cliptown-clients", rev = "5c92f27f61be656408ffbc9822553387d2f648d4", package = "cliptown-client-rust" }
+cliptown-interfaces-rust = { git = "https://github.com/cliptown/cliptown-interfaces", rev = "4782f0fbdaa2e4d4fdcbd637563c29d476f93f67", package = "cliptown-interfaces-rust" }
 directories = "6"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 ores-clis-core = { git = "https://github.com/ORESoftware/ores-clis-core.git", rev = "2ea696bd8dd066483d29c37af9e34036cbae82f9" }
